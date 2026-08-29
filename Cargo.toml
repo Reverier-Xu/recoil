@@ -1,0 +1,14 @@
+[package]
+name = "recoil"
+
+authors      = ["Reverier-Xu <reverier.xu@woooo.tech>"]
+description  = "Terminal based on woocraft and GPUI."
+edition      = "2024"
+homepage     = "https://recoil.woooo.tech"
+license      = "GPL-2.0-or-later"
+readme       = "README.md"
+repository   = "https://github.com/Reverier-Xu/recoil"
+rust-version = "1.96"
+version      = "0.0.1"
+
+[dependencies]
