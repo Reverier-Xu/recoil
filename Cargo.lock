@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "recoil"
+name = "recoil-term"
 version = "0.0.1"

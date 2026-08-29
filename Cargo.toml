@@ -1,5 +1,5 @@
 [package]
-name = "recoil"
+name = "recoil-term"
 
 authors      = ["Reverier-Xu <reverier.xu@woooo.tech>"]
 description  = "Terminal based on woocraft and GPUI."
