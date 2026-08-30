@@ -51,34 +51,34 @@ mod tests {
 
   use super::*;
 
+  /// Flattens a locale TOML into dotted keys.
+  fn flatten(prefix: &str, value: &toml::Value, keys: &mut Vec<String>) {
+    match value {
+      toml::Value::Table(table) => {
+        for (key, child) in table {
+          flatten(&format!("{prefix}.{key}"), child, keys);
+        }
+      }
+      toml::Value::String(text) => {
+        assert!(!text.is_empty(), "empty translation for key {prefix}");
+        keys.push(prefix.trim_start_matches('.').to_owned());
+      }
+      _ => panic!("locale values must be strings: {prefix}"),
+    }
+  }
+
+  /// Parses a locale file into its dotted key set.
+  fn keys(file: &str) -> std::collections::BTreeMap<String, bool> {
+    let value: toml::Value = toml::from_str(file).expect("locale file must parse");
+    let mut keys = Vec::new();
+    flatten("", &value, &mut keys);
+    keys.into_iter().map(|key| (key, true)).collect()
+  }
+
   /// Tier-0 locales must carry identical key sets; a key present in one and
   /// missing from the other fails the gate (ADR-0003).
   #[test]
   fn tier0_locale_key_sets_are_equal() {
-    use std::collections::BTreeMap;
-
-    fn flatten(prefix: &str, value: &toml::Value, keys: &mut Vec<String>) {
-      match value {
-        toml::Value::Table(table) => {
-          for (key, child) in table {
-            flatten(&format!("{prefix}.{key}"), child, keys);
-          }
-        }
-        toml::Value::String(text) => {
-          assert!(!text.is_empty(), "empty translation for key {prefix}");
-          keys.push(prefix.trim_start_matches('.').to_owned());
-        }
-        _ => panic!("locale values must be strings: {prefix}"),
-      }
-    }
-
-    fn keys(file: &str) -> BTreeMap<String, bool> {
-      let value: toml::Value = toml::from_str(file).expect("locale file must parse");
-      let mut keys = Vec::new();
-      flatten("", &value, &mut keys);
-      keys.into_iter().map(|key| (key, true)).collect()
-    }
-
     let en = keys(include_str!("../locales/en-us.toml"));
     let zh = keys(include_str!("../locales/zh-hans.toml"));
     let missing_in_zh: Vec<_> = en.keys().filter(|key| !zh.contains_key(*key)).collect();
@@ -87,6 +87,94 @@ mod tests {
       missing_in_zh.is_empty() && missing_in_en.is_empty(),
       "locale key mismatch: missing in zh-hans {missing_in_zh:?}, missing in en-us {missing_in_en:?}"
     );
+  }
+
+  /// Every dotted string literal in the crate source whose first segment is
+  /// a locale table must resolve to a real key in both tier-0 locales. The
+  /// key-set equality test alone cannot catch a key that is referenced from
+  /// code but missing from *both* files (t! then renders the raw key).
+  #[test]
+  fn referenced_keys_exist_in_tier0_locales() {
+    let en = keys(include_str!("../locales/en-us.toml"));
+    let zh = keys(include_str!("../locales/zh-hans.toml"));
+    // Top-level tables define the key namespaces; a literal like
+    // "terminal.menu.copy" is a key reference only because `terminal` is a
+    // known table, which keeps ids like "state.json" out of scope.
+    let tables: Vec<String> = en
+      .keys()
+      .filter_map(|key| key.split_once('.').map(|(head, _)| head.to_owned()))
+      .collect();
+
+    let mut sources = Vec::new();
+    let mut queue = vec![std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")];
+    while let Some(dir) = queue.pop() {
+      for entry in std::fs::read_dir(dir).expect("src directory must be readable") {
+        let path = entry.expect("src entry").path();
+        if path.is_dir() {
+          queue.push(path);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+          sources.push(path);
+        }
+      }
+    }
+    assert!(!sources.is_empty(), "the crate source tree must exist");
+
+    let mut missing = Vec::new();
+    let mut referenced = 0usize;
+    for path in sources {
+      let content = std::fs::read_to_string(&path).expect("source file must be utf-8");
+      for literal in string_literals(&content) {
+        let is_key = tables
+          .iter()
+          .any(|table| literal.starts_with(&format!("{table}.")));
+        if is_key {
+          referenced += 1;
+          if !en.contains_key(&literal) {
+            missing.push(format!("{}: {literal}", path.display()));
+          }
+          if !zh.contains_key(&literal) {
+            missing.push(format!("{}: {literal} (zh-hans)", path.display()));
+          }
+        }
+      }
+    }
+    // Non-vacuity: the crate references dozens of keys; fewer means the
+    // scanner broke and the gate would silently pass.
+    assert!(
+      referenced >= 10,
+      "expected key references, found {referenced}"
+    );
+    assert!(
+      missing.is_empty(),
+      "referenced locale keys are missing:\n{}",
+      missing.join("\n")
+    );
+  }
+
+  /// Extracts string literals from Rust source, skipping the `'"'` char
+  /// literal this scanner itself uses. The crate uses no escaped quotes
+  /// inside string literals, so a quote-to-quote scan is exact here.
+  fn string_literals(content: &str) -> Vec<String> {
+    let bytes = content.as_bytes();
+    let mut literals = Vec::new();
+    let mut index = 0;
+    while let Some(offset) = content[index..].find('"') {
+      let start = index + offset;
+      // A quote wrapped in single quotes is a char literal, not a string.
+      if start > 0 && bytes[start - 1] == b'\'' && bytes.get(start + 1) == Some(&b'\'') {
+        index = start + 2;
+        continue;
+      }
+      let rest = &content[start + 1..];
+      match rest.find('"') {
+        Some(end) => {
+          literals.push(rest[..end].to_owned());
+          index = start + 1 + end + 1;
+        }
+        None => break,
+      }
+    }
+    literals
   }
 
   /// One sequential test: the locale is a process-global, so tier-0

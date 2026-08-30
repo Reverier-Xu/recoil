@@ -12,6 +12,12 @@ local = "Local"
 default_title = "Terminal"
 exited        = "Session exited"
 
+[terminal.menu]
+clear      = "Clear"
+copy       = "Copy"
+paste      = "Paste"
+select_all = "Select All"
+
 [panels.paths]
 hint  = "Recent paths will appear here (G5)."
 title = "Paths"

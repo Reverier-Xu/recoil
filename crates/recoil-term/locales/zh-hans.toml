@@ -12,6 +12,12 @@ local = "本地"
 default_title = "终端"
 exited        = "会话已退出"
 
+[terminal.menu]
+clear      = "清除"
+copy       = "复制"
+paste      = "粘贴"
+select_all = "全选"
+
 [panels.paths]
 hint  = "最近路径将在此显示（G5）。"
 title = "路径"
