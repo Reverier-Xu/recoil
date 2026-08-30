@@ -1,0 +1,85 @@
+[graph]
+all-features = true
+
+[advisories]
+# `unmaintained` is scoped to workspace crates: the pinned gpui/woocraft
+# graph transitively depends on unmaintained crates (ttf-parser, rustybuzz,
+# paste) that only an upstream bump can replace. Re-evaluate on every
+# woocraft rev bump.
+ignore       = []
+unmaintained = "workspace"
+unsound      = "all"
+yanked       = "deny"
+
+[licenses]
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "bzip2-1.0.6",
+  "ISC",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Zlib",
+]
+confidence-threshold = 0.8
+include-dev = true
+
+[licenses.private]
+ignore = true
+
+[bans]
+allow-wildcard-paths          = true
+highlight                     = "all"
+multiple-versions             = "deny"
+multiple-versions-include-dev = true
+wildcards                     = "deny"
+# Duplicate-version skips are forced by the pinned gpui/woocraft graph.
+# Each entry carries the same standing reason; re-evaluate the whole list on
+# every dependency update and remove entries that stop being necessary.
+skip = [
+  { crate = "bitflags@1.3.2", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "getrandom@0.2.17", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "getrandom@0.3.4", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "itertools@0.11.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "itertools@0.13.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "miniz_oxide@0.8.9", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "png@0.17.16", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "pollster@0.2.5", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "r-efi@5.3.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "roxmltree@0.20.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "serde_spanned@0.6.9", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "shlex@1.3.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "spin@0.9.9", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "syn@2.0.119", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "thiserror@1.0.69", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "thiserror-impl@1.0.69", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "toml@0.8.23", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "toml_datetime@0.6.11", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "toml_edit@0.22.27", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows@0.61.3", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-collections@0.2.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-core@0.61.2", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-future@0.2.1", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-link@0.1.3", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-numerics@0.2.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-result@0.3.4", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-strings@0.4.2", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-sys@0.59.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "windows-threading@0.1.0", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+  { crate = "winnow@0.7.15", reason = "forced by the pinned gpui/woocraft graph; re-evaluate on dependency updates" },
+]
+
+[sources]
+allow-git = [
+  "https://github.com/Reverier-Xu/woocraft",
+  "https://github.com/zed-industries/zed",
+  "https://github.com/zed-industries/alacritty",
+  "https://github.com/zed-industries/font-kit",
+  "https://github.com/zed-industries/scap",
+]
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+unknown-git = "deny"
+unknown-registry = "deny"
