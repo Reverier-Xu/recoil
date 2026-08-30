@@ -17,4 +17,7 @@ pub enum Error {
   /// A value failed to serialize (schema export, validation projection).
   #[error("serialization error: {0}")]
   Serialize(#[from] serde_json::Error),
+  /// The configuration document failed to serialize to TOML.
+  #[error("toml serialization error: {0}")]
+  TomlSerialize(#[from] toml::ser::Error),
 }

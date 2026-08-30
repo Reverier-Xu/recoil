@@ -40,6 +40,7 @@ chrono = { version = "0.4", default-features = false, features = [
   "serde",
   "std",
 ] }
+notify = "7"
 # Already pinned in the lock graph through gpui_shared_string; the config
 # JSON Schema export adds no new packages.
 rust-i18n          = "4"

@@ -2,3 +2,4 @@
 
 pub mod observer;
 pub mod sessions;
+pub mod settings;

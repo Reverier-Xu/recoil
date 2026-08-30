@@ -21,6 +21,8 @@ compatibility of shipped config/state files; `R3` irreversible action.
 - `tracing` owns diagnostics; `rust-i18n` owns user-facing strings.
 - No embedded SSH library in this program; the ssh binary is the transport
   (ADR-0002).
+- `notify` owns filesystem watching for configuration hot reload
+  (T-G02-02).
 
 ## Critical Path
 

@@ -37,6 +37,7 @@ pub const APP_NAME: &str = "Recoil";
 /// Initializes the application: stores, actions, keymap, and menus.
 pub fn init(cx: &mut App) {
   localization::init(cx);
+  stores::settings::init(cx);
   stores::sessions::init(cx);
   workspace::bind_keys(cx);
   workspace::set_app_menu(cx);
