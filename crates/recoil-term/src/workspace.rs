@@ -174,9 +174,9 @@ const LAYOUT_SAVE_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_
 /// Debounced variant used for `LayoutChanged` storms.
 pub fn save_layout_debounced(cx: &mut App) {
   let now = std::time::Instant::now();
-  let due = !cx
+  let due = cx
     .try_global::<GlobalLastLayoutSave>()
-    .is_some_and(|last| now.duration_since(last.0) < LAYOUT_SAVE_MIN_INTERVAL);
+    .is_none_or(|last| now.duration_since(last.0) >= LAYOUT_SAVE_MIN_INTERVAL);
   if due {
     cx.set_global(GlobalLastLayoutSave(now));
     save_layout(cx);
