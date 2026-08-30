@@ -145,7 +145,8 @@ pub fn rebuild(cx: &mut App) {
     TrayMenuItem::action("quit", t!("tray.quit").to_string()),
   ];
 
-  if let Err(err) = cx.set_tray(Tray::new().tooltip("Recoil").menu(menu)) {
+  let tooltip = t!("app.name").to_string();
+  if let Err(err) = cx.set_tray(Tray::new().tooltip(tooltip).menu(menu)) {
     tracing::warn!(error = %err, "failed to configure tray");
   }
 }

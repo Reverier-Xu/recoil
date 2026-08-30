@@ -238,7 +238,7 @@ impl Render for Workspace {
         .on_action(cx.listener(Self::on_quit))
         .child(
           TitleBar::new()
-            .title("Recoil")
+            .title(crate::localization::t!("app.name").to_string())
             .app_menu_bar(self.app_menu_bar.clone())
             .language_button(true)
             .on_language_button_click(|_, _, cx| rebuild_for_locale(cx)),
