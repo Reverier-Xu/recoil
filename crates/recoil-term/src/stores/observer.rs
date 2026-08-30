@@ -48,6 +48,11 @@ struct Observation {
   ssh: Option<SshObservation>,
   /// The foreground process name (`process - cwd` label).
   process: Option<String>,
+  /// The tty foreground is not the root shell: a job is running. Jobs may
+  /// be transient prompt hooks (atuin, starship precmd helpers) that hold
+  /// the tty foreground for a few milliseconds, so the scan loop confirms
+  /// them over a short settle window before trusting the label.
+  settle: bool,
 }
 
 #[cfg(target_os = "linux")]
@@ -159,6 +164,7 @@ fn observe(root_pid: u32, title: Option<&str>) -> Observation {
         cwd: title.and_then(remote_cwd_from_title),
         ssh: Some(ssh),
         process: Some("ssh".to_owned()),
+        settle: true,
       };
     }
 
@@ -176,6 +182,7 @@ fn observe(root_pid: u32, title: Option<&str>) -> Observation {
       cwd: current.and_then(|snapshot| snapshot.cwd.clone()),
       ssh: None,
       process: current.map(|snapshot| snapshot.comm.clone()),
+      settle: foreground.is_some(),
     }
   }
   #[cfg(not(target_os = "linux"))]
@@ -185,9 +192,17 @@ fn observe(root_pid: u32, title: Option<&str>) -> Observation {
       cwd: None,
       ssh: None,
       process: None,
+      settle: false,
     }
   }
 }
+
+/// How long the scan loop waits before confirming a foreground job. Long
+/// enough that prompt hooks (atuin, starship) have returned the tty
+/// foreground to the shell; short enough that real programs (vim, ssh,
+/// top) are never missed.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+const FOREGROUND_SETTLE_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
 
 /// Starts the event-driven observation loop for a session. Linux only for
 /// now; other platforms gain observations through G3's terminal-behavior
@@ -219,10 +234,32 @@ pub fn start(id: SessionId, store: &mut SessionStore, cx: &mut Context<SessionSt
         let title = this.update(cx, |store, _| store.title(id)).ok().flatten();
         // Filesystem reads run on the background executor; they must never
         // block the UI thread.
-        let observed = cx
+        let mut observed = cx
           .background_executor()
           .spawn(async move { observe(root_pid, title.as_deref()) })
           .await;
+        if observed.settle {
+          // A foreground job may be a transient prompt hook (atuin history
+          // hooks, starship precmd helpers) that owns the tty foreground
+          // for a few milliseconds. Confirm the job survives a short settle
+          // window; the fresh rescan then describes either the stable job
+          // or the shell that took the foreground back.
+          cx.background_executor()
+            .timer(FOREGROUND_SETTLE_DELAY)
+            .await;
+          let Some(root_pid) = this
+            .update(cx, |store, _| store.live_root_pid(id))
+            .ok()
+            .flatten()
+          else {
+            return;
+          };
+          let title = this.update(cx, |store, _| store.title(id)).ok().flatten();
+          observed = cx
+            .background_executor()
+            .spawn(async move { observe(root_pid, title.as_deref()) })
+            .await;
+        }
         let ssh_active = observed.ssh.is_some();
         let Ok(()) = this.update(cx, |store, cx| {
           match &observed.ssh {
