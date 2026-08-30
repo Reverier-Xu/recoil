@@ -24,7 +24,9 @@ use std::path::PathBuf;
 use gpui::Context;
 use recoil_core::session::SshObservation;
 
-use crate::stores::sessions::{SSH_LIVENESS_INTERVAL, SessionId, SessionStore};
+#[cfg(target_os = "linux")]
+use crate::stores::sessions::SSH_LIVENESS_INTERVAL;
+use crate::stores::sessions::{SessionId, SessionStore};
 
 /// A snapshot of one descendant process of a session's shell.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
