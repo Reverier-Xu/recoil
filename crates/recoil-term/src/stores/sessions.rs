@@ -19,6 +19,7 @@ use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
 /// event-driven: scans happen on spawn, on title changes, and on this
 /// targeted check only while ssh is active (a remote disconnect produces no
 /// local events).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) const SSH_LIVENESS_INTERVAL: Duration = Duration::from_secs(5);
 
 /// How often the backgrounded-session watcher polls the child status.

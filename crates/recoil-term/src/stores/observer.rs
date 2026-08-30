@@ -27,6 +27,7 @@ use recoil_core::session::SshObservation;
 use crate::stores::sessions::{SSH_LIVENESS_INTERVAL, SessionId, SessionStore};
 
 /// A snapshot of one descendant process of a session's shell.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 struct ProcessSnapshot {
   /// The process name from `/proc/<pid>/comm` (e.g. `ssh`, `fish`).
   comm: String,
@@ -39,6 +40,7 @@ struct ProcessSnapshot {
 }
 
 /// One round of observation over a live session.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 struct Observation {
   cwd: Option<PathBuf>,
   ssh: Option<SshObservation>,
