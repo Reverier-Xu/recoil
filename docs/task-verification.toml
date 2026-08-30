@@ -48,7 +48,6 @@ quality_argv = [
     "scripts/validate-planning-docs.sh",
   ],
 ]
-
 [[task]]
 id              = "T-G00-01"
 include_quality = true
@@ -125,7 +124,7 @@ state           = "ready"
 verification_id = "VERIFY-G00-06"
 
 [[verification]]
-argv            = ["cargo", "test", "-p", "recoil-core"]
+argv            = ["cargo", "test", "-p", "recoil-core", "config"]
 id              = "VERIFY-G00-06"
 owner_task      = "T-G00-06"
 state           = "ready"
@@ -134,80 +133,83 @@ timeout_seconds = 300
 [[task]]
 id              = "T-G01-01"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G01-01"
 
 [[verification]]
-argv            = []
+argv            = ["scripts/verify-g01-01-layout.sh"]
 id              = "VERIFY-G01-01"
 owner_task      = "T-G01-01"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
 
 [[task]]
 id              = "T-G01-02"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G01-02"
 
 [[verification]]
-argv            = []
+argv            = ["cargo", "test", "-p", "recoil-core", "--lib", "session"]
 id              = "VERIFY-G01-02"
 owner_task      = "T-G01-02"
-state           = "planned"
-timeout_seconds = 600
+state           = "ready"
+timeout_seconds = 300
 
 [[task]]
 id              = "T-G01-03"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G01-03"
 
 [[verification]]
-argv            = []
+argv            = ["scripts/verify-g01-ui-smoke.sh"]
 id              = "VERIFY-G01-03"
 owner_task      = "T-G01-03"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
 
 [[task]]
 id              = "T-G01-04"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G01-04"
 
 [[verification]]
-argv            = []
+argv            = ["cargo", "test", "-p", "recoil-core", "--test", "session_pty"]
 id              = "VERIFY-G01-04"
 owner_task      = "T-G01-04"
-state           = "planned"
-timeout_seconds = 900
+state           = "ready"
+timeout_seconds = 300
 
 [[task]]
 id              = "T-G01-05"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G01-05"
 
 [[verification]]
-argv            = []
+argv            = ["scripts/verify-g01-ui-smoke.sh"]
 id              = "VERIFY-G01-05"
 owner_task      = "T-G01-05"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
 
 [[task]]
 id              = "T-G01-06"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G01-06"
 
 [[verification]]
-argv            = []
+argv            = ["scripts/verify-g01-ui-smoke.sh"]
 id              = "VERIFY-G01-06"
 owner_task      = "T-G01-06"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
+
+# Gates G2-G7: tasks are planned; register literal argv and flip state to
+# "ready" before starting work.
 
 [[task]]
 id              = "T-G02-01"

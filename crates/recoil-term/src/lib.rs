@@ -4,9 +4,51 @@
 //! tests can exercise application-facing modules through the public surface.
 //! Domain logic that must run headless belongs in `recoil-core`, not here.
 
+pub mod actions_marker {
+  // The action set lives in `workspace` with the handlers that own it.
+}
+
+pub mod localization;
+pub mod panels;
+pub mod stores;
+pub mod terminal;
+#[cfg(feature = "tray")]
+pub mod tray;
+pub mod workspace;
+
+#[cfg(not(feature = "tray"))]
+pub mod tray {
+  /// No-op stub used when the tray feature is disabled.
+  pub mod tray {
+    pub fn init(_cx: &mut woocraft::gpui::App) {}
+  }
+
+  pub use tray::init;
+}
+
+use gpui::App;
+
+// Per ADR-0003 all user-facing strings resolve through rust-i18n. The
+// `i18n!` macro must be invoked at the crate root so `t!` finds the
+// generated backend; locale selection is owned by woocraft.
+rust_i18n::i18n!("locales", fallback = "en-us");
+
 /// The application display name. User-facing strings are resolved through
 /// rust-i18n; this identifier is locale-independent.
 pub const APP_NAME: &str = "Recoil";
+
+/// Initializes the application: stores, actions, keymap, and menus.
+pub fn init(cx: &mut App) {
+  localization::init(cx);
+  stores::sessions::init(cx);
+  workspace::bind_keys(cx);
+  workspace::set_app_menu(cx);
+  workspace::observe_sessions(cx);
+  terminal::panel::register_panels(cx);
+  panels::register_panels(cx);
+  #[cfg(feature = "tray")]
+  tray::observe_sessions(cx);
+}
 
 #[cfg(test)]
 mod tests {
