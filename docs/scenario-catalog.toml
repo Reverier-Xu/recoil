@@ -7,13 +7,13 @@ status = "accepted"
 # manual verification), or `documentation`.
 
 [[scenario]]
-acceptance      = "Rearranging left-dock tabs, main tabs, and sizes persists to dock state and restores identically on relaunch."
+acceptance      = "Open terminal sessions and the active tab persist to state.json and relaunch as fresh local shells in their last local directories."
 gate            = "G1"
 id              = "SC-G01-P0-01"
 kind            = "headless"
 owner_task      = "T-G01-01"
 priority        = "P0"
-title           = "Dock layout round-trips"
+title           = "Session state round-trips"
 verification_id = "VERIFY-G01-01"
 
 [[scenario]]

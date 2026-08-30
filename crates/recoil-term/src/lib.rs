@@ -41,8 +41,6 @@ pub fn init(cx: &mut App) {
   workspace::bind_keys(cx);
   workspace::set_app_menu(cx);
   workspace::observe_sessions(cx);
-  terminal::panel::register_panels(cx);
-  panels::register_panels(cx);
   #[cfg(feature = "tray")]
   tray::observe_sessions(cx);
 }

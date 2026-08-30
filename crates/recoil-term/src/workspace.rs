@@ -10,7 +10,7 @@ use woocraft::{AppMenuBar, DockArea, DockItem, DockPlacement, TitleBar, v_flex, 
 
 use crate::{
   panels,
-  stores::sessions::{SessionEvent, session_store},
+  stores::sessions::{SessionEvent, session_store, try_session_store},
   terminal::panel,
 };
 
@@ -19,10 +19,27 @@ actions!(
   [NewTerminal, CloseActiveTab, ToggleLeftDock, QuitRecoil]
 );
 
-/// The persisted workspace state file (`state.json`).
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+/// One terminal session to restore on startup. PTYs never cross process
+/// restarts, so a record restores as a fresh local shell.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+struct SessionRecord {
+  /// The working directory to start the restored shell in. Only local cwds
+  /// are recorded — a remote (ssh) path is meaningless for a local shell.
+  cwd: Option<PathBuf>,
+}
+
+/// The persisted workspace state (`state.json`).
+///
+/// Deliberately minimal: which terminal sessions were open (each restores
+/// as a fresh local shell in its last local directory) and which one was
+/// active. The dock layout itself is not persisted; it is assembled the
+/// same way on every startup.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 struct WorkspaceState {
-  dock_area: Option<woocraft::DockAreaState>,
+  sessions: Vec<SessionRecord>,
+  /// The active tab's index into `sessions`.
+  active: Option<usize>,
 }
 
 struct GlobalActiveDockArea(Entity<DockArea>);
@@ -76,30 +93,13 @@ impl Workspace {
 
     build_layout(&dock_area, window, cx);
 
-    // Persist layout when it changes. `LayoutChanged` fires continuously
-    // during drags, so writes are debounced by a minimum interval; the
-    // final state is always flushed on quit.
-    cx.subscribe(
-      &dock_area,
-      |_, event: &woocraft::DockEvent, cx: &mut App| {
-        if matches!(event, woocraft::DockEvent::LayoutChanged) {
-          save_layout_debounced(cx);
-        }
-      },
-    )
-    .detach();
-
     cx.set_global(GlobalActiveDockArea(dock_area));
     cx.set_global(GlobalAppMenuBar(app_menu_bar.clone()));
-    // Persist the initial assembly: `LayoutChanged` events fired during
-    // construction were seen by no subscriber yet.
-    save_layout(cx);
     workspace
   }
 
   fn on_new_terminal(&mut self, _: &NewTerminal, window: &mut Window, cx: &mut Context<Self>) {
-    panel::open_local_terminal(&self.dock_area, window, cx);
-    save_layout(cx);
+    panel::open_local_terminal(&self.dock_area, None, window, cx);
   }
 
   fn on_close_active_tab(
@@ -112,7 +112,6 @@ impl Workspace {
       self.dock_area.update(cx, |area, cx| {
         area.close_panel_by_id(&panel_id, window, cx);
       });
-      save_layout(cx);
     }
   }
 
@@ -145,72 +144,97 @@ fn build_layout(dock_area: &Entity<DockArea>, window: &mut Window, cx: &mut App)
   dock_area.update(cx, |area, cx| {
     area.set_center_placeholder(crate::welcome::view(window, cx), window, cx);
   });
-
-  // Restore persisted layout when available; fall back to the default
-  // assembly. Terminal panels cannot be resurrected across restarts, so the
-  // registered deserializer spawns a fresh local session per stored tab.
-  if let Some(state) = load_layout(cx) {
-    let loaded = dock_area.update(cx, |area, cx| area.load(state, window, cx));
-    if loaded.is_ok() {
-      return;
-    }
-    tracing::warn!("failed to restore the persisted layout; using the default one");
-  }
-
-  let store = session_store(cx);
-  let initial = store.update(cx, |store, cx| store.spawn_local(cx));
-  dock_area.update(cx, |area, cx| {
-    if let Ok(id) = initial {
-      let p = cx.new(|cx| panel::TerminalPanel::for_session(id, window, cx));
-      area.add_to_center(std::sync::Arc::new(p), window, cx);
-    }
-  });
   panels::build_left_dock(dock_area, window, cx);
-}
 
-fn load_layout(_cx: &App) -> Option<woocraft::DockAreaState> {
-  let file = std::fs::read_to_string(state_file()?).ok()?;
-  let state: WorkspaceState = serde_json::from_str(&file).ok()?;
-  state.dock_area
-}
-
-struct GlobalLastLayoutSave(std::time::Instant);
-
-impl Global for GlobalLastLayoutSave {}
-
-/// Minimum interval between layout writes while `LayoutChanged` storms.
-const LAYOUT_SAVE_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// Debounced variant used for `LayoutChanged` storms.
-pub fn save_layout_debounced(cx: &mut App) {
-  let now = std::time::Instant::now();
-  let due = cx
-    .try_global::<GlobalLastLayoutSave>()
-    .is_none_or(|last| now.duration_since(last.0) >= LAYOUT_SAVE_MIN_INTERVAL);
-  if due {
-    cx.set_global(GlobalLastLayoutSave(now));
-    save_layout(cx);
+  // Restore the sessions that were open at quit as fresh local shells; PTYs
+  // never cross process restarts. With nothing persisted, spawn the default
+  // terminal so the app never opens into an empty workbench.
+  let state = load_state();
+  let mut records = state.sessions;
+  if records.is_empty() {
+    records.push(SessionRecord::default());
+  }
+  let store = session_store(cx);
+  for record in &records {
+    let spawned = store.update(cx, |store, cx| store.spawn_local(record.cwd.clone(), cx));
+    match spawned {
+      Ok(id) => {
+        let p = cx.new(|cx| panel::TerminalPanel::for_session(id, window, cx));
+        dock_area.update(cx, |area, cx| {
+          area.add_to_center(std::sync::Arc::new(p), window, cx);
+        });
+      }
+      Err(err) => {
+        tracing::warn!(error = %err, "failed to restore a session; skipping the record")
+      }
+    }
+  }
+  if let Some(index) = state.active {
+    let ids: Vec<String> = store
+      .read(cx)
+      .entries()
+      .map(|entry| format!("terminal:{}", entry.meta.id))
+      .collect();
+    if let Some(panel_id) = ids.get(index) {
+      dock_area.update(cx, |area, cx| {
+        area.activate_panel_by_id(panel_id, window, cx);
+      });
+    }
   }
 }
 
-/// Persists the dock layout. G6 adds atomic writes and crash safety.
-pub fn save_layout(cx: &App) {
+fn load_state() -> WorkspaceState {
+  let Some(path) = state_file() else {
+    return WorkspaceState::default();
+  };
+  let Ok(file) = std::fs::read_to_string(&path) else {
+    return WorkspaceState::default();
+  };
+  serde_json::from_str(&file).unwrap_or_else(|err| {
+    tracing::warn!(error = %err, path = %path.display(), "failed to parse the workspace state");
+    WorkspaceState::default()
+  })
+}
+
+/// Persists which sessions are open and which one is active. G6 adds atomic
+/// writes and crash safety.
+pub fn save_state(cx: &App) {
   let Some(path) = state_file() else {
     return;
   };
-  let Some(area) = active_dock_area(cx) else {
+  let Some(store) = try_session_store(cx) else {
     return;
   };
-  let state = WorkspaceState {
-    dock_area: Some(area.read(cx).dump(cx)),
-  };
+  let store = store.read(cx);
+  let sessions: Vec<SessionRecord> = store
+    .entries()
+    .filter(|entry| entry.is_alive())
+    .map(|entry| SessionRecord {
+      cwd: match entry.meta.ssh() {
+        // A remote path is meaningless for the local shell a session
+        // restores as.
+        Some(_) => None,
+        None => entry.meta.observation.cwd.clone(),
+      },
+    })
+    .collect();
+  let active = active_dock_area(cx)
+    .and_then(|area| center_active_panel(&area, cx))
+    .and_then(|panel| {
+      let panel_id = panel.panel_id(cx);
+      let id = panel_id.strip_prefix("terminal:")?;
+      store
+        .entries()
+        .position(|entry| entry.meta.id.as_str() == id)
+    });
+  let state = WorkspaceState { sessions, active };
   let Ok(json) = serde_json::to_string_pretty(&state) else {
     return;
   };
   if let Err(err) = std::fs::create_dir_all(path.parent().expect("state file has a parent"))
     .and_then(|_| std::fs::write(&path, json))
   {
-    tracing::warn!(error = %err, path = %path.display(), "failed to persist layout");
+    tracing::warn!(error = %err, path = %path.display(), "failed to persist the workspace state");
   }
 }
 
@@ -222,7 +246,7 @@ pub fn quit(cx: &mut App) {
   if live > 0 {
     tracing::info!(sessions = live, "quitting with live sessions");
   }
-  save_layout(cx);
+  save_state(cx);
   cx.quit();
 }
 
@@ -327,7 +351,6 @@ pub fn bind_keys(cx: &mut App) {
   cx.bind_keys(keys);
 }
 
-/// Subscribes the workspace to store events that affect persisted state.
 /// Subscribes the workspace to store events that affect persisted state and
 /// tab visibility.
 pub fn observe_sessions(cx: &mut App) {
@@ -339,8 +362,9 @@ pub fn observe_sessions(cx: &mut App) {
       // root-exit closes any attached panel automatically).
       SessionEvent::Exited(id, _) | SessionEvent::Removed(id) => {
         close_terminal_panel(*id, cx);
-        save_layout(cx);
+        save_state(cx);
       }
+      SessionEvent::Spawned(_) => save_state(cx),
       _ => {}
     },
   )

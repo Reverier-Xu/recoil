@@ -45,7 +45,8 @@ A gate is `NOT_STARTED`, `ACTIVE`, `BLOCKED`, or `PASS`.
 ### G1: Workbench Shell and Session Ownership
 
 - **Build:** DockArea assembly with left dock (three tabs) and main tab
-  area; layout persistence; `SessionStore` with `SessionEntry`,
+  area; session-state persistence (open sessions and the active terminal
+  round-trip through `state.json` as fresh local shells); `SessionStore` with `SessionEntry`,
   `SessionState`, and the ADR-0001 state machine; `TerminalPanel` with OSC
   title tracking; close-path semantics (tab close detaches, tree close
   kills, root exit cleans up); basic tray with show/hide/quit; view

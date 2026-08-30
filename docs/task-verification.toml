@@ -137,7 +137,7 @@ state           = "ready"
 verification_id = "VERIFY-G01-01"
 
 [[verification]]
-argv            = ["scripts/verify-g01-01-layout.sh"]
+argv            = ["scripts/verify-g01-01-session-state.sh"]
 id              = "VERIFY-G01-01"
 owner_task      = "T-G01-01"
 state           = "ready"

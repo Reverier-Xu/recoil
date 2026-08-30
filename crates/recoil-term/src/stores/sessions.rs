@@ -97,13 +97,15 @@ pub fn session_store(cx: &mut App) -> Entity<SessionStore> {
 
 impl SessionStore {
   /// Spawns a local shell session and registers it as
-  /// [`SessionState::Spawning`].
-  pub fn spawn_local(&mut self, cx: &mut Context<Self>) -> Result<SessionId, anyhow::Error> {
+  /// [`SessionState::Spawning`]. `cwd` starts the shell in a specific
+  /// directory (session restoration); `None` uses the inherited directory.
+  pub fn spawn_local(
+    &mut self, cwd: Option<PathBuf>, cx: &mut Context<Self>,
+  ) -> Result<SessionId, anyhow::Error> {
     let id = SessionId::generate();
-    let session = TerminalSession::spawn(
-      SpawnOptions::default_shell_options(),
-      TerminalBounds::default(),
-    )?;
+    let mut options = SpawnOptions::default_shell_options();
+    options.working_directory = cwd;
+    let session = TerminalSession::spawn(options, TerminalBounds::default())?;
     let meta = SessionMeta::new_local(id, session.pid());
     let pid = meta.pid;
     self.entries.insert(id, SessionEntry::spawning(meta));

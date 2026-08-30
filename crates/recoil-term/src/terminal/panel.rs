@@ -2,11 +2,11 @@
 
 use gpui::{
   App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
-  ParentElement as _, Render, SharedString, Styled as _, WeakEntity, Window,
+  ParentElement as _, Render, SharedString, Styled as _, Window,
 };
 use woocraft::{
-  ActiveTheme as _, ContextMenuExt as _, DockArea, IconName, Panel, PanelEvent, PanelState,
-  PopupMenuItem, TerminalView, TerminalViewEvent, h_flex,
+  ActiveTheme as _, ContextMenuExt as _, IconName, Panel, PanelEvent, PanelState, PopupMenuItem,
+  TerminalView, TerminalViewEvent, h_flex,
 };
 use woocraft_terminal::TerminalSession;
 
@@ -52,15 +52,6 @@ impl TerminalPanel {
       terminal,
       focus_handle,
     }
-  }
-
-  /// Spawns a fresh local session and returns the panel for it.
-  pub fn create_local(window: &mut Window, cx: &mut Context<Self>) -> Self {
-    let store = session_store(cx);
-    let id = store
-      .update(cx, |store, cx| store.spawn_local(cx))
-      .expect("spawn local session");
-    Self::for_session(id, window, cx)
   }
 
   /// The session this panel observes.
@@ -125,13 +116,7 @@ impl Panel for TerminalPanel {
   }
 
   fn dump(&self, _cx: &App) -> PanelState {
-    // Persist only the panel identity: PTYs cannot cross process restarts,
-    // and G5 owns honest reopen suggestions for dead sessions.
-    let mut state = PanelState::new(self);
-    state.info = woocraft::PanelInfo::panel(serde_json::json!({
-      "session_id": self.id.as_str(),
-    }));
-    state
+    PanelState::new(self)
   }
 
   fn on_removed(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
@@ -223,32 +208,16 @@ impl Render for TerminalPanel {
   }
 }
 
-/// Rebuilds a terminal panel from persisted dock state.
-///
-/// The stored session id is not resurrectable across restarts, so a fresh
-/// local session is spawned in the same tab position. Honest reopen
-/// suggestions for dead sessions are G5 behavior.
-pub fn deserialize_terminal_panel(
-  _dock_area: WeakEntity<DockArea>, _state: &PanelState, _info: &woocraft::PanelInfo,
-  window: &mut Window, cx: &mut App,
-) -> Box<dyn woocraft::PanelView> {
-  let panel = cx.new(|cx| TerminalPanel::create_local(window, cx));
-  Box::new(panel)
-}
-
-/// Registers all application panels with the woocraft panel registry.
-pub fn register_panels(cx: &mut App) {
-  woocraft::register_panel(cx, PANEL_NAME, deserialize_terminal_panel);
-}
-
-/// Convenience: spawn a local session and add its panel to the center of the
-/// dock area, activating it.
+/// Convenience: spawn a local session and add its panel to the center of
+/// the dock area, activating it. `cwd` starts the shell in a specific
+/// directory (session restoration); `None` inherits.
 pub fn open_local_terminal(
-  dock_area: &Entity<woocraft::DockArea>, window: &mut Window, cx: &mut App,
+  dock_area: &Entity<woocraft::DockArea>, cwd: Option<std::path::PathBuf>, window: &mut Window,
+  cx: &mut App,
 ) -> SessionId {
   let store = session_store(cx);
   let id = store
-    .update(cx, |store, cx| store.spawn_local(cx))
+    .update(cx, |store, cx| store.spawn_local(cwd, cx))
     .expect("spawn local session");
   let panel = cx.new(|cx| TerminalPanel::for_session(id, window, cx));
   dock_area.update(cx, |dock_area, cx| {

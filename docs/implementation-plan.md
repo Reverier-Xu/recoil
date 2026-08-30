@@ -42,7 +42,7 @@ G3 and G4 may run in parallel after their dependencies pass.
 
 | Task | Risk | Depends | Deliverable / exact impact | Owned paths | Evidence | RB |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-G01-01 Dock shell and layout persistence | P0/M | G0 | `Workspace` root with `DockArea`, left dock three-tab skeleton, main tab area, title bar and app menu; layout round-trip through dock state | `crates/recoil-term/src/workspace*` | `Q`; layout persistence test; SC-G01-P0-01..02 | R1 |
+| T-G01-01 Dock shell and session-state persistence | P0/M | G0 | `Workspace` root with `DockArea`, left dock three-tab skeleton, main tab area, title bar and app menu; `state.json` round-trips the open sessions (fresh local shells in their last local directories) and the active terminal | `crates/recoil-term/src/workspace*` | `Q`; session-state persistence test; SC-G01-P0-01..02 | R1 |
 | T-G01-02 Session store and lifecycle FSM | P0/H | 01-01 | `SessionStore` global, `SessionEntry`, `SessionState`, `SessionId` (ULID), ADR-0001 state machine, debounced metadata events | `crates/recoil-term/src/stores/sessions*` | `Q`; headless FSM tests; SC-G01-P0-03..05 | R1 |
 | T-G01-03 Terminal panel | P0/H | 01-02 | `TerminalPanel` (Panel impl) spawning sessions from settings, OSC title tab tracking, focus handling, per-view event pump only | `crates/recoil-term/src/terminal/*` | `Q`; SC-G01-P0-06..07 | R1 |
 | T-G01-04 Close-path semantics | P0/H | 01-02,01-03 | Tab close detaches, tree close kills (incl. backgrounded), root exit cleanup; headless evidence with real PTYs | `stores/sessions`, `terminal/panel` | Headless PTY lifecycle tests; E2E-01 | R1 |

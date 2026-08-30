@@ -11,7 +11,7 @@ use woocraft::{Tray, TrayAppContext as _, TrayEvent, TrayMenuItem, tray_events};
 use crate::{
   localization::t,
   stores::sessions::{SessionEvent, session_store},
-  workspace::{NewTerminal, QuitRecoil, save_layout},
+  workspace::{NewTerminal, QuitRecoil, save_state},
 };
 
 /// How often the tray event queue is polled from the main executor.
@@ -87,7 +87,7 @@ fn toggle_window(cx: &mut App) {
 }
 
 /// Raises a session: activates its panel when a view exists, otherwise
-/// restores one into the main area by dispatching the workspace action flow.
+/// rebuilds one into the main area (ADR-0001 restore path).
 fn raise_session(id: recoil_core::session::SessionId, cx: &mut App) {
   let store = session_store(cx);
   let alive = store
@@ -110,7 +110,12 @@ fn raise_session(id: recoil_core::session::SessionId, cx: &mut App) {
           area.activate_panel_by_id(&panel_id, window, cx)
         });
         if !activated {
-          crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
+          let panel =
+            cx.new(|cx| crate::terminal::panel::TerminalPanel::for_session(id, window, cx));
+          dock_area.update(cx, |area, cx| {
+            area.add_to_center(std::sync::Arc::new(panel), window, cx);
+            area.activate_panel_by_id(&panel_id, window, cx);
+          });
         }
       }
     })
@@ -157,14 +162,12 @@ pub fn observe_sessions(cx: &mut App) {
   cx.subscribe(
     &store,
     |_, event: &SessionEvent, cx: &mut App| match event {
-      SessionEvent::Spawned(_)
-      | SessionEvent::Exited(..)
-      | SessionEvent::Removed(_)
-      | SessionEvent::MetaChanged(_) => {
+      SessionEvent::Spawned(_) | SessionEvent::MetaChanged(_) => {
         rebuild(cx);
-        if matches!(event, SessionEvent::Exited(..) | SessionEvent::Removed(_)) {
-          save_layout(cx);
-        }
+      }
+      SessionEvent::Exited(..) | SessionEvent::Removed(..) => {
+        rebuild(cx);
+        save_state(cx);
       }
       SessionEvent::StateChanged(_) => {
         // Background/foreground changes do not alter the menu set.

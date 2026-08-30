@@ -97,7 +97,7 @@ The application provides:
 | Area | Crate | Responsibility | Primary extension boundary |
 | --- | --- | --- | --- |
 | Domain model | `recoil-core` | Config, profiles, session metadata, classification, persistence | Serde data model |
-| Workspace shell | `recoil-term` | Dock assembly, layout persistence, actions, keybindings | Panel registry |
+| Workspace shell | `recoil-term` | Dock assembly, session-state persistence, actions, keybindings | Panel registry |
 | Terminal surface | `recoil-term::terminal` | Terminal panels, extensions glue, search, context menu | Upstream `TerminalView` |
 | Session ownership | `recoil-term::stores` | Session store, lifecycle state machine, tray glue | Store events |
 | Configuration | `recoil-term::stores` | Settings store, hot reload, settings UI | Config schema |

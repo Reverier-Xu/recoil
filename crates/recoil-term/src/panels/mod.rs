@@ -307,7 +307,7 @@ impl Render for SessionsPanel {
               PopupMenuItem::new(t!("panels.sessions.new_terminal").to_string()).on_click(
                 |_, window, cx| {
                   if let Some(dock_area) = crate::workspace::active_dock_area(cx) {
-                    crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
+                    crate::terminal::panel::open_local_terminal(&dock_area, None, window, cx);
                   }
                 },
               ),
@@ -328,22 +328,5 @@ pub fn build_left_dock(dock_area: &Entity<DockArea>, window: &mut Window, cx: &m
     area.add_to_left_dock(std::sync::Arc::new(history), window, cx);
     area.add_to_left_dock(std::sync::Arc::new(sessions), window, cx);
     area.set_dock_size(DockPlacement::Left, px(280.), window, cx);
-  });
-}
-
-/// Registers the left dock panels with the woocraft panel registry so the
-/// persisted layout can rebuild them on load.
-pub fn register_panels(cx: &mut App) {
-  woocraft::register_panel(cx, PATHS_PANEL, |_, _, _, window, cx| {
-    let _ = window;
-    Box::new(cx.new(PathsPanel::new))
-  });
-  woocraft::register_panel(cx, HISTORY_PANEL, |_, _, _, window, cx| {
-    let _ = window;
-    Box::new(cx.new(HistoryPanel::new))
-  });
-  woocraft::register_panel(cx, SESSIONS_PANEL, |_, _, _, window, cx| {
-    let _ = window;
-    Box::new(cx.new(SessionsPanel::new))
   });
 }

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# VERIFY-G01-01: dock shell assembly and layout persistence.
+# VERIFY-G01-01: dock shell assembly and session-state persistence.
 #
 # Boots the application for a few seconds, then asserts that the persisted
-# workspace state contains the left dock panels and a terminal panel.
+# workspace state records the open terminal sessions. The dock layout itself
+# is intentionally not persisted; only sessions and the active terminal are.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -29,11 +30,15 @@ sleep 1
 
 [[ -f $STATE_FILE ]] || { printf 'state file was not written: %s\n' "$STATE_FILE" >&2; exit 1; }
 
-for needle in '"PathsPanel"' '"HistoryPanel"' '"SessionsPanel"' '"TerminalPanel"'; do
-  grep -q "$needle" "$STATE_FILE" || {
-    printf 'persisted layout is missing %s\n' "$needle" >&2
-    exit 1
-  }
-done
+grep -q '"sessions"' "$STATE_FILE" || {
+  printf 'persisted state is missing the sessions list\n' >&2
+  exit 1
+}
+# The default startup must spawn one terminal, so the session list is never
+# empty — including on the very first launch without any prior state.
+if grep -q '"sessions": \[\]' "$STATE_FILE"; then
+  printf 'no terminal session was spawned on first launch\n' >&2
+  exit 1
+fi
 
-printf 'layout persistence verified (%s)\n' "$STATE_FILE"
+printf 'session-state persistence verified (%s)\n' "$STATE_FILE"
