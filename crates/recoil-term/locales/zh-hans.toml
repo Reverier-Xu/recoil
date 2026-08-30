@@ -1,0 +1,34 @@
+app.name = "Recoil"
+
+[session.kind]
+local = "本地"
+
+[terminal]
+default_title = "终端"
+exited        = "会话已退出"
+
+[panels.paths]
+hint  = "最近路径将在此显示（G5）。"
+title = "路径"
+
+[panels.history]
+hint  = "会话历史将在此显示（G5）。"
+title = "历史"
+
+[panels.sessions]
+new_terminal = "新建终端"
+title        = "会话"
+
+[menu]
+close_tab        = "关闭标签页"
+new_terminal     = "新建终端"
+quit             = "退出"
+toggle_left_dock = "切换左侧 Dock"
+view             = "视图"
+
+[tray]
+new_terminal = "新建终端"
+open         = "打开 %{label}"
+quit         = "退出"
+sessions     = "会话"
+show_hide    = "显示 / 隐藏窗口"

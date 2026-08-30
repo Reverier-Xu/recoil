@@ -1,0 +1,255 @@
+//! The GPUI session store: the sole owner of `TerminalSession` handles.
+//!
+//! Lifecycle follows ADR-0001; the state machine itself lives in
+//! `recoil-core::session`. This store adds the PTY handles, backgrounded
+//! exit watchers, and the event surface for panels and the tray.
+
+use std::{collections::HashMap, time::Duration};
+
+use gpui::{App, AppContext as _, Context, Entity, EventEmitter, Global, Task, WeakEntity};
+pub use recoil_core::session::SessionId;
+use recoil_core::session::{
+  ExitInfo, SessionEntry, SessionKind, SessionMeta, SessionState, SessionTransition,
+  TransitionError, TransitionOutcome,
+};
+use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
+
+/// How often the backgrounded-session watcher polls the child status.
+///
+/// Polling (instead of consuming the session event channel) keeps the store
+/// from competing with terminal views for events: while a session is active
+/// its view is the only consumer, and while it is backgrounded nobody needs
+/// low-latency exit notification.
+const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Events emitted by the session store.
+#[derive(Debug, Clone)]
+pub enum SessionEvent {
+  /// A session entered the registry.
+  Spawned(SessionId),
+  /// A session changed state (attach, detach, kill, root exit).
+  StateChanged(SessionId),
+  /// Session metadata changed (title, cwd).
+  MetaChanged(SessionId),
+  /// The root process ended. Emitted once, right before reaping.
+  Exited(SessionId, ExitInfo),
+  /// The entry left the registry.
+  Removed(SessionId),
+}
+
+struct Watcher(#[allow(dead_code)] Task<()>);
+
+/// The active-session registry.
+pub struct SessionStore {
+  entries: HashMap<SessionId, SessionEntry>,
+  sessions: HashMap<SessionId, TerminalSession>,
+  watchers: HashMap<SessionId, Watcher>,
+  order: Vec<SessionId>,
+  weak: WeakEntity<Self>,
+}
+
+impl EventEmitter<SessionEvent> for SessionStore {}
+
+/// The GPUI global pointing at the session store entity.
+pub struct GlobalSessionStore(Entity<SessionStore>);
+
+impl Global for GlobalSessionStore {}
+
+/// Initializes the global session store.
+pub fn init(cx: &mut App) {
+  let store = cx.new(|cx| SessionStore {
+    entries: HashMap::new(),
+    sessions: HashMap::new(),
+    watchers: HashMap::new(),
+    order: Vec::new(),
+    weak: cx.entity().downgrade(),
+  });
+  cx.set_global(GlobalSessionStore(store));
+}
+
+/// Returns the global session store.
+pub fn session_store(cx: &mut App) -> Entity<SessionStore> {
+  if let Some(global) = cx.try_global::<GlobalSessionStore>() {
+    return global.0.clone();
+  }
+  init(cx);
+  cx.try_global::<GlobalSessionStore>()
+    .map(|global| global.0.clone())
+    .expect("session store initialized")
+}
+
+impl SessionStore {
+  /// Spawns a local shell session and registers it as
+  /// [`SessionState::Spawning`].
+  pub fn spawn_local(&mut self, cx: &mut Context<Self>) -> Result<SessionId, anyhow::Error> {
+    let id = SessionId::generate();
+    let session = TerminalSession::spawn(
+      SpawnOptions::default_shell_options(),
+      TerminalBounds::default(),
+    )?;
+    let meta = SessionMeta::new_local(id, session.pid());
+    let pid = meta.pid;
+    self.entries.insert(id, SessionEntry::spawning(meta));
+    self.sessions.insert(id, session);
+    self.order.push(id);
+    cx.emit(SessionEvent::Spawned(id));
+    tracing::info!(session = %id, pid, "spawned local session");
+    Ok(id)
+  }
+
+  /// The live PTY handle for a session.
+  pub fn session(&self, id: SessionId) -> Option<TerminalSession> {
+    self.sessions.get(&id).cloned()
+  }
+
+  /// The headless entry for a session.
+  pub fn entry(&self, id: SessionId) -> Option<&SessionEntry> {
+    self.entries.get(&id)
+  }
+
+  /// Entries in creation order.
+  pub fn entries(&self) -> impl Iterator<Item = &SessionEntry> + '_ {
+    self.order.iter().filter_map(|id| self.entries.get(id))
+  }
+
+  /// The number of sessions that still own a PTY.
+  pub fn live_count(&self) -> usize {
+    self.entries.values().filter(|e| e.is_alive()).count()
+  }
+
+  /// A view attached to the session: `Spawning`/`Backgrounded` → `Active`.
+  pub fn attach(&mut self, id: SessionId, cx: &mut Context<Self>) {
+    self.watchers.remove(&id);
+    self.apply(id, SessionTransition::Attach, cx);
+  }
+
+  /// The last view detached: `Active` → `Backgrounded`; starts the exit
+  /// watcher. The PTY is untouched.
+  pub fn detach(&mut self, id: SessionId, cx: &mut Context<Self>) {
+    self.apply(id, SessionTransition::Detach, cx);
+    if self
+      .entries
+      .get(&id)
+      .is_some_and(|entry| entry.state == SessionState::Backgrounded)
+    {
+      self.start_watcher(id, cx);
+    }
+  }
+
+  /// The user asked to terminate the session (dock tree / tray close),
+  /// including backgrounded sessions.
+  pub fn close(&mut self, id: SessionId, cx: &mut Context<Self>) {
+    let Some(session) = self.sessions.get(&id) else {
+      self.reap(id, cx);
+      return;
+    };
+    session.kill();
+    self.apply(id, SessionTransition::Kill, cx);
+    tracing::info!(session = %id, "session closed by user");
+  }
+
+  /// Called by an attached view when the root process exited.
+  pub fn root_exited(
+    &mut self, id: SessionId, status: Option<woocraft_terminal::ChildStatus>,
+    cx: &mut Context<Self>,
+  ) {
+    let exit = ExitInfo {
+      code: status.map(|s| s.code()),
+      #[cfg(unix)]
+      signal: status.and_then(|s| s.signal),
+      #[cfg(not(unix))]
+      signal: None,
+    };
+    self.apply(id, SessionTransition::RootExit(exit), cx);
+    self.finish_exit(id, exit, cx);
+  }
+
+  /// Updates the application title (OSC 0/2) metadata.
+  pub fn set_title(&mut self, id: SessionId, title: Option<String>, cx: &mut Context<Self>) {
+    if let Some(entry) = self.entries.get_mut(&id)
+      && entry.meta.title != title
+    {
+      entry.meta.title = title;
+      cx.emit(SessionEvent::MetaChanged(id));
+    }
+  }
+
+  fn apply(
+    &mut self, id: SessionId, by: SessionTransition, cx: &mut Context<Self>,
+  ) -> Option<TransitionOutcome> {
+    let entry = self.entries.get_mut(&id)?;
+    match entry.transition(by) {
+      Ok(outcome @ (TransitionOutcome::Notified | TransitionOutcome::Noop)) => {
+        if outcome == TransitionOutcome::Notified {
+          cx.emit(SessionEvent::StateChanged(id));
+        }
+        Some(outcome)
+      }
+      Ok(TransitionOutcome::Reaped) => {
+        self.reap(id, cx);
+        Some(TransitionOutcome::Reaped)
+      }
+      Err(TransitionError::AlreadyReaped) => None,
+      Err(err @ TransitionError::Invalid { .. }) => {
+        tracing::warn!(session = %id, error = %err, "rejected lifecycle transition");
+        None
+      }
+    }
+  }
+
+  /// Emits `Exited` and reaps the entry. The PTY handle is dropped, which
+  /// closes the PTY if the child is somehow still alive.
+  fn finish_exit(&mut self, id: SessionId, exit: ExitInfo, cx: &mut Context<Self>) {
+    self.watchers.remove(&id);
+    cx.emit(SessionEvent::Exited(id, exit));
+    self.reap(id, cx);
+  }
+
+  fn reap(&mut self, id: SessionId, cx: &mut Context<Self>) {
+    if self.entries.remove(&id).is_none() {
+      return;
+    }
+    self.sessions.remove(&id);
+    self.watchers.remove(&id);
+    self.order.retain(|existing| *existing != id);
+    cx.emit(SessionEvent::Removed(id));
+    tracing::info!(session = %id, "session reaped");
+  }
+
+  /// Watches a backgrounded session for root exit. Polls the handle instead
+  /// of consuming the event channel so views stay the only channel consumer.
+  fn start_watcher(&mut self, id: SessionId, cx: &mut Context<Self>) {
+    let Some(session) = self.sessions.get(&id).cloned() else {
+      return;
+    };
+    let weak = self.weak.clone();
+    let task = cx.spawn(async move |_this, cx| {
+      loop {
+        cx.background_executor().timer(WATCHER_INTERVAL).await;
+        if session.is_alive() {
+          continue;
+        }
+        let exit = ExitInfo {
+          code: session.child_exit_status().map(|s| s.code()),
+          #[cfg(unix)]
+          signal: session.child_exit_status().and_then(|s| s.signal),
+          #[cfg(not(unix))]
+          signal: None,
+        };
+        let Ok(()) = weak.update(cx, |store, cx| {
+          store.apply(id, SessionTransition::RootExit(exit), cx);
+          store.finish_exit(id, exit, cx);
+        }) else {
+          return;
+        };
+        return;
+      }
+    });
+    self.watchers.insert(id, Watcher(task));
+  }
+
+  /// The `SessionKind` of a session, for classification.
+  pub fn kind(&self, id: SessionId) -> Option<SessionKind> {
+    self.entries.get(&id).map(|e| e.meta.kind.clone())
+  }
+}

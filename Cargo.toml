@@ -23,6 +23,15 @@ woocraft = { git = "https://github.com/Reverier-Xu/woocraft", rev = "0135e39983a
   "terminal",
 ] }
 woocraft-terminal = { git = "https://github.com/Reverier-Xu/woocraft", rev = "0135e39983a39a1b3450fcaa2ce628ef28a4a0a8", package = "woocraft-terminal" }
+# gpui and its platform bootstrap, pinned to the exact zed revision woocraft
+# itself uses so cargo unifies the graph. A direct pin is required because
+# gpui proc macros emit `::gpui::` absolute paths.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "399258feeaf90ad8a3a208c99221ee87b6452f38", package = "gpui" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "399258feeaf90ad8a3a208c99221ee87b6452f38", package = "gpui_platform", features = [
+  "font-kit",
+  "wayland",
+  "x11",
+] }
 
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = [
@@ -36,6 +45,7 @@ serde_json = "1.0"
 thiserror = "2.0"
 toml = "1.1"
 tracing = { version = "0.1", features = ["attributes"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "1.2", features = ["serde"] }
 
 [workspace.lints.rust]

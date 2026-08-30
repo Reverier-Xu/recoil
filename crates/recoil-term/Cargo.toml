@@ -21,15 +21,15 @@ resources = ["woocraft/resources"]
 tray      = ["woocraft/tray"]
 
 [dependencies]
+gpui              = { workspace = true }
+gpui_platform     = { workspace = true }
 recoil-core       = { workspace = true }
 woocraft          = { workspace = true }
 woocraft-terminal = { workspace = true }
 
-anyhow     = { workspace = true }
-chrono     = { workspace = true }
-rust-i18n  = { workspace = true }
-serde      = { workspace = true }
-serde_json = { workspace = true }
-thiserror  = { workspace = true }
-tracing    = { workspace = true }
-ulid       = { workspace = true }
+anyhow             = { workspace = true }
+rust-i18n          = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }

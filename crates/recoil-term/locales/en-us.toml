@@ -1,0 +1,34 @@
+app.name = "Recoil"
+
+[session.kind]
+local = "Local"
+
+[terminal]
+default_title = "Terminal"
+exited        = "Session exited"
+
+[panels.paths]
+hint  = "Recent paths will appear here (G5)."
+title = "Paths"
+
+[panels.history]
+hint  = "Session history will appear here (G5)."
+title = "History"
+
+[panels.sessions]
+new_terminal = "New Terminal"
+title        = "Sessions"
+
+[menu]
+close_tab        = "Close Tab"
+new_terminal     = "New Terminal"
+quit             = "Quit"
+toggle_left_dock = "Toggle Left Dock"
+view             = "View"
+
+[tray]
+new_terminal = "New Terminal"
+open         = "Open %{label}"
+quit         = "Quit"
+sessions     = "Sessions"
+show_hide    = "Show / Hide Window"
