@@ -10,8 +10,8 @@ use async_channel::Sender;
 use gpui::{App, AppContext as _, Context, Entity, EventEmitter, Global, Task, WeakEntity};
 pub use recoil_core::session::SessionId;
 use recoil_core::session::{
-  ExitInfo, SessionEntry, SessionMeta, SessionState, SessionTransition, TransitionError,
-  TransitionOutcome,
+  ExitInfo, SessionEntry, SessionMeta, SessionState, SessionTransition, SshObservation,
+  TransitionError, TransitionOutcome,
 };
 use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
 
@@ -286,26 +286,16 @@ impl SessionStore {
     self.observe(id, |meta| meta.observation.process = Some(process), cx);
   }
 
-  /// Updates the observed ssh connection (profile spawn, shell integration).
-  pub fn observe_ssh(
-    &mut self, id: SessionId, host: String, profile_id: Option<String>, cx: &mut Context<Self>,
-  ) {
-    self.observe(
-      id,
-      |meta| {
-        meta.observation.ssh = Some(recoil_core::session::SshObservation {
-          host,
-          user: None,
-          profile_id,
-        })
-      },
-      cx,
-    );
+  /// Updates the observed ssh connection (process-tree observation, G4
+  /// profile spawns). Crossing the locality boundary invalidates the cwd:
+  /// a local path must never label a remote session and vice versa.
+  pub fn observe_ssh(&mut self, id: SessionId, ssh: SshObservation, cx: &mut Context<Self>) {
+    self.observe(id, |meta| meta.observation.set_ssh(Some(ssh)), cx);
   }
 
   /// The session left ssh (observation, not user intrusion).
   pub fn observe_leave_ssh(&mut self, id: SessionId, cx: &mut Context<Self>) {
-    self.observe(id, |meta| meta.observation.ssh = None, cx);
+    self.observe(id, |meta| meta.observation.set_ssh(None), cx);
   }
 
   fn observe(

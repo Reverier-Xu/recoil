@@ -24,24 +24,31 @@ pub fn init(_cx: &mut App) {
 /// The display label for a session, translated for its kind.
 ///
 /// Format per the product contract: `process - last cwd segment`
-/// (e.g. `fish - recoil`, `ssh - projects`). Falls back to the OSC title
-/// when nothing has been observed yet (e.g. non-Linux platforms), then to
-/// the session kind.
+/// (e.g. `fish - recoil`). While the session sits inside ssh, the parts
+/// describe the remote side: the remote foreground program (from the remote
+/// shell's title, else the transport) and the remote cwd, falling back to
+/// the host while the remote title is silent (`fish - projects`,
+/// `ssh - build.internal`). Without observations the label falls back to
+/// the session kind; the OSC title is metadata for the heuristics, never a
+/// label itself (it is often just a path).
 pub fn session_label(meta: &SessionMeta) -> String {
-  let process = meta.observation.process.clone();
-  let cwd_last = meta.observation.cwd_last_segment();
-  let ssh = meta.ssh();
+  let process = meta.observation.process.as_deref();
+  let segment = meta.observation.cwd_last_segment();
 
-  match (process, cwd_last, ssh) {
-    (Some(process), Some(segment), _) if process != segment => format!("{process} - {segment}"),
-    // "ssh - ssh" would be ambiguous; the host identifies the session.
-    (Some(process), _, Some(ssh)) => format!("{process} - {}", ssh.host),
-    (Some(process), _, None) => process,
-    (None, Some(segment), _) => segment,
-    // No observations yet: fall back to the kind label. The OSC title is
-    // metadata for the heuristics, never a label (it is often just a path).
-    (None, None, Some(ssh)) => ssh.host.clone(),
-    (None, None, None) => t!("session.kind.local").to_string(),
+  match meta.ssh() {
+    Some(ssh) => {
+      let process = process.unwrap_or("ssh");
+      match segment {
+        Some(segment) => format!("{process} - {segment}"),
+        None => format!("{process} - {}", ssh.host),
+      }
+    }
+    None => match (process, segment) {
+      (Some(process), Some(segment)) if process != segment => format!("{process} - {segment}"),
+      (Some(process), ..) => process.to_owned(),
+      (None, Some(segment)) => segment,
+      (None, None) => t!("session.kind.local").to_string(),
+    },
   }
 }
 
@@ -205,6 +212,11 @@ mod tests {
     assert_eq!(session_label(&meta), "ssh - build.internal");
     meta.observation.cwd = Some("~/projects".into());
     assert_eq!(session_label(&meta), "ssh - projects");
+
+    // A fish remote reports its foreground program through the title: the
+    // label follows the remote side entirely.
+    meta.observation.process = Some("fish".to_owned());
+    assert_eq!(session_label(&meta), "fish - projects");
 
     assert_eq!(
       t!("panels.sessions.new_terminal").to_string(),

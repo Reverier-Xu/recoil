@@ -138,6 +138,22 @@ pub struct SessionObservation {
 }
 
 impl SessionObservation {
+  /// Records the ssh observation. Crossing a locality boundary — entering,
+  /// switching, or leaving a connection — invalidates the cwd: a path
+  /// observed on one side never describes the other side. Re-observing the
+  /// same connection keeps the remote cwd collected so far.
+  pub fn set_ssh(&mut self, ssh: Option<SshObservation>) {
+    let boundary_crossed = match (&self.ssh, &ssh) {
+      (None, None) => false,
+      (Some(previous), Some(next)) => previous.host != next.host,
+      _ => true,
+    };
+    if boundary_crossed {
+      self.cwd = None;
+    }
+    self.ssh = ssh;
+  }
+
   /// The last path segment of the observed cwd, for display labels
   /// (`/home/u/recoil` → `recoil`, `~` → `~`).
   pub fn cwd_last_segment(&self) -> Option<String> {
@@ -494,6 +510,40 @@ mod tests {
     // No destination at all.
     assert!(parse_ssh_command(&args(&["-V"])).is_none());
     assert!(parse_ssh_command(&args(&[])).is_none());
+  }
+
+  #[test]
+  fn ssh_boundaries_invalidate_cwd() {
+    let host = |name: &str| SshObservation {
+      host: name.to_owned(),
+      user: None,
+      profile_id: None,
+    };
+    let mut observation = SessionObservation {
+      cwd: Some(PathBuf::from("/home/u/local")),
+      ..SessionObservation::default()
+    };
+
+    // Entering ssh: the local cwd never describes the remote side.
+    observation.set_ssh(Some(host("build.internal")));
+    assert_eq!(observation.cwd, None);
+
+    // Re-observing the same connection keeps the remote cwd.
+    observation.cwd = Some(PathBuf::from("~/remote"));
+    observation.set_ssh(Some(host("build.internal")));
+    assert_eq!(
+      observation.cwd.as_deref(),
+      Some(std::path::Path::new("~/remote"))
+    );
+
+    // Switching hosts: the previous remote's cwd is invalid.
+    observation.set_ssh(Some(host("other.internal")));
+    assert_eq!(observation.cwd, None);
+
+    // Leaving ssh: the remote cwd never describes the local side.
+    observation.cwd = Some(PathBuf::from("~/elsewhere"));
+    observation.set_ssh(None);
+    assert_eq!(observation.cwd, None);
   }
 
   #[test]
