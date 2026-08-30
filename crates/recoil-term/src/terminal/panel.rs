@@ -155,6 +155,8 @@ impl Render for TerminalPanel {
       let terminal = self.terminal.clone();
       h_flex()
         .size_full()
+        .items_center()
+        .justify_center()
         .child(self.terminal.clone())
         // Right-click operations on the terminal surface. The menu operates
         // on the view through its public API only; keystrokes and mouse
