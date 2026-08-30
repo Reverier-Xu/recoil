@@ -15,7 +15,12 @@ fn main() {
     )
     .init();
 
+  // Embedded fonts and icons ship with the `resources` feature; without it
+  // the host must provide its own asset source.
+  #[cfg(feature = "resources")]
   let app = gpui_platform::application().with_assets(woocraft::Assets);
+  #[cfg(not(feature = "resources"))]
+  let app = gpui_platform::application();
   app.run(|cx: &mut App| {
     woocraft::init(cx);
     init(cx);
