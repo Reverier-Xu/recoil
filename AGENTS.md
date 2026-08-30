@@ -62,11 +62,14 @@ tests use `woocraft_terminal::TerminalSession` directly, never a window.
 - Secrets discipline: passwords, passphrases, and key material never enter
   config files, state files, logs, or tracing output.
 - Use the standard tools for standard code operations: read files with the
-  read tool, locate with grep/rg, and edit with the edit tool. Do not edit,
-  generate, or patch code through python/shell one-off scripts — script-driven
-  edits hide what changed and defeat review. Reserve python (or ad-hoc
-  scripts) for complex behavior testing, numerical computation, and data
-  analysis where they are genuinely the right tool.
+  read tool, locate with grep/rg, and edit with the edit tool. Never edit,
+  generate, or patch project files through python/shell one-off scripts
+  (`python -c`, `sed -i`, `awk` in-place, heredoc rewrites, …). Script-driven
+  edits hide what changed, cannot prove how many places a pattern matched,
+  and defeat review — treat a script-based edit like an unreviewable commit.
+  Reserve python (or ad-hoc scripts) for complex behavior testing, numerical
+  computation, and data analysis where they are genuinely the right tool,
+  and never let them write back into the repository.
 
 ## Planning System
 
