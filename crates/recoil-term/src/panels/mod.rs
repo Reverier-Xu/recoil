@@ -1,9 +1,8 @@
-//! Left dock panels: paths, history, and sessions.
+//! Left dock panels and dialogs.
 //!
-//! The panels are projections over the global stores; they hold no
-//! authoritative state beyond transient UI state. Full classification views,
-//! search, and the shared activity store arrive in G5; the sessions panel
-//! here already provides the close-path affordances required by ADR-0001.
+//! The left dock panels are projections over the global stores; they hold no
+//! authoritative state beyond transient UI state. The settings window is a
+//! separate dialog for editing `config.toml`.
 
 use gpui::{
   App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable,
@@ -315,6 +314,8 @@ impl Render for SessionsPanel {
       )
   }
 }
+
+pub mod settings;
 
 /// Builds the left dock content: three panels in tabs.
 pub fn build_left_dock(dock_area: &Entity<DockArea>, window: &mut Window, cx: &mut App) {

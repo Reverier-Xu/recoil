@@ -10,6 +10,7 @@ use woocraft::{AppMenuBar, DockArea, DockItem, DockPlacement, TitleBar, v_flex, 
 
 use crate::{
   panels,
+  panels::settings::OpenSettings,
   stores::sessions::{SessionEvent, session_store, try_session_store},
   terminal::panel,
 };
@@ -125,6 +126,10 @@ impl Workspace {
 
   fn on_quit(&mut self, _: &QuitRecoil, _: &mut Window, cx: &mut Context<Self>) {
     quit(cx);
+  }
+
+  fn on_open_settings(&mut self, _: &OpenSettings, _window: &mut Window, cx: &mut Context<Self>) {
+    panels::settings::SettingsWindow::open(cx);
   }
 }
 
@@ -259,6 +264,7 @@ impl Render for Workspace {
         .on_action(cx.listener(Self::on_new_terminal))
         .on_action(cx.listener(Self::on_close_active_tab))
         .on_action(cx.listener(Self::on_toggle_left_dock))
+        .on_action(cx.listener(Self::on_open_settings))
         .on_action(cx.listener(Self::on_quit))
         .child(
           TitleBar::new()
@@ -311,6 +317,8 @@ pub fn set_app_menu(cx: &mut App) {
       items: vec![
         MenuItem::action(label("menu.new_terminal"), NewTerminal),
         MenuItem::action(label("menu.close_tab"), CloseActiveTab),
+        MenuItem::separator(),
+        MenuItem::action(label("menu.settings"), OpenSettings),
         MenuItem::separator(),
         MenuItem::action(label("menu.quit"), QuitRecoil),
       ],

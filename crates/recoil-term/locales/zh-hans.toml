@@ -38,8 +38,36 @@ close_tab        = "关闭标签页"
 file             = "文件"
 new_terminal     = "新建终端"
 quit             = "退出"
+settings         = "设置"
 toggle_left_dock = "切换左侧 Dock"
 view             = "视图"
+
+[settings]
+appearance_tab = "外观"
+diagnostics    = "验证错误"
+features_tab   = "功能"
+save           = "保存"
+terminal_tab   = "终端"
+title          = "设置"
+
+alternate_scroll  = "交替滚动"
+cursor_blink      = "光标闪烁"
+cursor_shape      = "光标形状"
+font_fallbacks    = "备用字体"
+font_family       = "字体族"
+font_size         = "字号（px）"
+scrolling_history = "回滚历史"
+
+palette    = "终端调色板覆盖"
+theme_mode = "主题模式"
+
+bell                    = "终端响铃"
+bell_when_hidden_notify = "隐藏时响铃通知"
+copy_on_select          = "选中复制"
+hyperlink               = "超链接"
+mouse_reporting         = "鼠标报告"
+osc52                   = "OSC 52 剪贴板"
+smart_select            = "智能选择"
 
 [tray]
 new_terminal = "新建终端"

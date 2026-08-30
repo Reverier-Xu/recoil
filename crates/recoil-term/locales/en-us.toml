@@ -38,8 +38,36 @@ close_tab        = "Close Tab"
 file             = "File"
 new_terminal     = "New Terminal"
 quit             = "Quit"
+settings         = "Settings"
 toggle_left_dock = "Toggle Left Dock"
 view             = "View"
+
+[settings]
+appearance_tab = "Appearance"
+diagnostics    = "Validation Error"
+features_tab   = "Features"
+save           = "Save"
+terminal_tab   = "Terminal"
+title          = "Settings"
+
+alternate_scroll  = "Alternate Scroll"
+cursor_blink      = "Cursor Blink"
+cursor_shape      = "Cursor Shape"
+font_fallbacks    = "Font Fallbacks"
+font_family       = "Font Family"
+font_size         = "Font Size (px)"
+scrolling_history = "Scrollback History"
+
+palette    = "Terminal Palette Override"
+theme_mode = "Theme Mode"
+
+bell                    = "Terminal Bell"
+bell_when_hidden_notify = "Bell Notification When Hidden"
+copy_on_select          = "Copy on Select"
+hyperlink               = "Hyperlinks"
+mouse_reporting         = "Mouse Reporting"
+osc52                   = "OSC 52 Clipboard"
+smart_select            = "Smart Selection"
 
 [tray]
 new_terminal = "New Terminal"

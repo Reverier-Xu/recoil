@@ -240,14 +240,14 @@ timeout_seconds = 600
 [[task]]
 id              = "T-G02-03"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G02-03"
 
 [[verification]]
-argv            = []
+argv            = ["cargo", "test", "-p", "recoil-term", "panels::settings"]
 id              = "VERIFY-G02-03"
 owner_task      = "T-G02-03"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
 
 [[task]]
