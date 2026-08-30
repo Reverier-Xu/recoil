@@ -65,7 +65,7 @@ jobs:
         run: scripts/validate-planning-docs.sh
 
       - name: reject invalid planning fixtures
-        run: scripts/validate-planning-docs.sh --self-test
+        run: "! scripts/validate-planning-docs.sh --self-test"
 
   msrv:
     name: msrv
