@@ -1,0 +1,467 @@
+schema = "recoil.woooo.tech/schemas/planning-scenarios-v1"
+status = "accepted"
+
+# UI scenario IDs are stable: SC-G<two-digit gate>-<P0|P1>-<two-digit serial>.
+# Every scenario names its owning task and the verification run that exercises
+# it. `kind` is `headless` (automated without a window), `ui` (checklist-driven
+# manual verification), or `documentation`.
+
+[[scenario]]
+acceptance      = "Rearranging left-dock tabs, main tabs, and sizes persists to dock state and restores identically on relaunch."
+gate            = "G1"
+id              = "SC-G01-P0-01"
+kind            = "headless"
+owner_task      = "T-G01-01"
+priority        = "P0"
+title           = "Dock layout round-trips"
+verification_id = "VERIFY-G01-01"
+
+[[scenario]]
+acceptance      = "Left dock shows paths, history, and sessions tabs; main area hosts terminal tabs; both respond to collapse and resize."
+gate            = "G1"
+id              = "SC-G01-P0-02"
+kind            = "ui"
+owner_task      = "T-G01-01"
+priority        = "P0"
+title           = "Left dock tab skeleton"
+verification_id = "VERIFY-G01-01"
+
+[[scenario]]
+acceptance      = "Every ADR-0001 transition (spawn, attach, detach, kill, exit, reap) is exercised headlessly with real PTYs, including idempotent re-entry."
+gate            = "G1"
+id              = "SC-G01-P0-03"
+kind            = "headless"
+owner_task      = "T-G01-02"
+priority        = "P0"
+title           = "Lifecycle FSM transitions"
+verification_id = "VERIFY-G01-02"
+
+[[scenario]]
+acceptance      = "Dropping the view does not terminate the child; the store still reports a live session with working input."
+gate            = "G1"
+id              = "SC-G01-P0-04"
+kind            = "headless"
+owner_task      = "T-G01-02"
+priority        = "P0"
+title           = "Detached session keeps running"
+verification_id = "VERIFY-G01-02"
+
+[[scenario]]
+acceptance      = "Child exit produces Exited state, store removal, and subscriber notification exactly once per session."
+gate            = "G1"
+id              = "SC-G01-P0-05"
+kind            = "headless"
+owner_task      = "T-G01-02"
+priority        = "P0"
+title           = "Root exit cleans up"
+verification_id = "VERIFY-G01-02"
+
+[[scenario]]
+acceptance      = "Running a program that sets the OSC 0/2 title renames the tab; a reset restores the default label."
+gate            = "G1"
+id              = "SC-G01-P0-06"
+kind            = "ui"
+owner_task      = "T-G01-03"
+priority        = "P0"
+title           = "OSC title tracks tab"
+verification_id = "VERIFY-G01-03"
+
+[[scenario]]
+acceptance      = "Terminal wakeups do not notify the session store or dock panels; only debounced metadata events cross the boundary."
+gate            = "G1"
+id              = "SC-G01-P0-07"
+kind            = "headless"
+owner_task      = "T-G01-03"
+priority        = "P0"
+title           = "Event pump isolation"
+verification_id = "VERIFY-G01-03"
+
+[[scenario]]
+acceptance      = "Tray menu toggles window visibility; quit with live sessions lists them and requires confirmation."
+gate            = "G1"
+id              = "SC-G01-P1-01"
+kind            = "ui"
+owner_task      = "T-G01-05"
+priority        = "P1"
+title           = "Tray show/hide/quit"
+verification_id = "VERIFY-G01-05"
+
+[[scenario]]
+acceptance      = "New terminal, close tab, switch tab, focus dock, and focus terminal work per the documented keymap."
+gate            = "G1"
+id              = "SC-G01-P1-02"
+kind            = "ui"
+owner_task      = "T-G01-05"
+priority        = "P1"
+title           = "Default keymap"
+verification_id = "VERIFY-G01-05"
+
+[[scenario]]
+acceptance      = "Changing family, px size, fallbacks, theme mode, or terminal palette applies to live sessions without restart."
+gate            = "G2"
+id              = "SC-G02-P0-04"
+kind            = "ui"
+owner_task      = "T-G02-04"
+priority        = "P0"
+title           = "Font and theme hot-apply"
+verification_id = "VERIFY-G02-04"
+
+[[scenario]]
+acceptance      = "Cursor shape and blink settings apply to new and existing sessions; blink off disables the blink timer."
+gate            = "G2"
+id              = "SC-G02-P0-05"
+kind            = "ui"
+owner_task      = "T-G02-04"
+priority        = "P0"
+title           = "Cursor settings apply"
+verification_id = "VERIFY-G02-04"
+
+[[scenario]]
+acceptance      = "Every product-contract setting is editable in the settings UI and round-trips to config.toml."
+gate            = "G2"
+id              = "SC-G02-P1-01"
+kind            = "ui"
+owner_task      = "T-G02-03"
+priority        = "P1"
+title           = "Settings UI edits config"
+verification_id = "VERIFY-G02-03"
+
+[[scenario]]
+acceptance      = "Invalid values are rejected with actionable diagnostics in the UI; the file is never silently rewritten."
+gate            = "G2"
+id              = "SC-G02-P1-02"
+kind            = "ui"
+owner_task      = "T-G02-03"
+priority        = "P1"
+title           = "Validation diagnostics surface"
+verification_id = "VERIFY-G02-03"
+
+[[scenario]]
+acceptance      = "Every string added by this task exists in en-US and zh-CN with no hardcoded fallbacks."
+gate            = "G2"
+id              = "SC-G02-P1-03"
+kind            = "documentation"
+owner_task      = "T-G02-03"
+priority        = "P1"
+title           = "Tier-0 strings complete"
+verification_id = "VERIFY-G02-03"
+
+[[scenario]]
+acceptance      = "OSC 8 links underline on hover, open on modifier-click with a scheme allowlist, and offer copy-link."
+gate            = "G3"
+id              = "SC-G03-P0-01"
+kind            = "ui"
+owner_task      = "T-G03-01"
+priority        = "P0"
+title           = "Hyperlink open and copy"
+verification_id = "VERIFY-G03-01"
+
+[[scenario]]
+acceptance      = "With hyperlink disabled, no hover affordance and no click-open behavior exist."
+gate            = "G3"
+id              = "SC-G03-P0-02"
+kind            = "ui"
+owner_task      = "T-G03-01"
+priority        = "P0"
+title           = "Hyperlink switch off"
+verification_id = "VERIFY-G03-01"
+
+[[scenario]]
+acceptance      = "Only allowlisted schemes open; unknown schemes are ignored without crashing."
+gate            = "G3"
+id              = "SC-G03-P0-03"
+kind            = "headless"
+owner_task      = "T-G03-01"
+priority        = "P0"
+title           = "Scheme allowlist"
+verification_id = "VERIFY-G03-01"
+
+[[scenario]]
+acceptance      = "Selection granularity respects configured word characters including CJK and hyphens."
+gate            = "G3"
+id              = "SC-G03-P0-04"
+kind            = "headless"
+owner_task      = "T-G03-02"
+priority        = "P0"
+title           = "Word characters honored"
+verification_id = "VERIFY-G03-02"
+
+[[scenario]]
+acceptance      = "Click selects word, double-click word, triple-click line, and block select works with the documented modifier."
+gate            = "G3"
+id              = "SC-G03-P0-05"
+kind            = "ui"
+owner_task      = "T-G03-02"
+priority        = "P0"
+title           = "Multi-click selection"
+verification_id = "VERIFY-G03-02"
+
+[[scenario]]
+acceptance      = "Plain-text URLs without OSC 8 are detected lazily on the visible rows only and follow the same open policy."
+gate            = "G3"
+id              = "SC-G03-P0-06"
+kind            = "ui"
+owner_task      = "T-G03-02"
+priority        = "P0"
+title           = "URL fallback detection"
+verification_id = "VERIFY-G03-02"
+
+[[scenario]]
+acceptance      = "A session emitting OSC 7 updates the session cwd metadata and the activity store within the debounce window."
+gate            = "G3"
+id              = "SC-G03-P0-07"
+kind            = "headless"
+owner_task      = "T-G03-03"
+priority        = "P0"
+title           = "OSC 7 captured"
+verification_id = "VERIFY-G03-03"
+
+[[scenario]]
+acceptance      = "The integration snippet is documented, safe to source, and opt-in."
+gate            = "G3"
+id              = "SC-G03-P0-08"
+kind            = "documentation"
+owner_task      = "T-G03-03"
+priority        = "P0"
+title           = "Shell integration opt-in"
+verification_id = "VERIFY-G03-03"
+
+[[scenario]]
+acceptance      = "Copy, paste, select-all, clear, and open-link work from the context menu and honor feature switches."
+gate            = "G3"
+id              = "SC-G03-P1-01"
+kind            = "ui"
+owner_task      = "T-G03-04"
+priority        = "P1"
+title           = "Context menu actions"
+verification_id = "VERIFY-G03-04"
+
+[[scenario]]
+acceptance      = "Search finds matches in scrollback, jumps between them, and highlights the active match."
+gate            = "G3"
+id              = "SC-G03-P1-02"
+kind            = "ui"
+owner_task      = "T-G03-04"
+priority        = "P1"
+title           = "Scrollback search"
+verification_id = "VERIFY-G03-04"
+
+[[scenario]]
+acceptance      = "If the highlight hook is not yet available upstream, the degraded form is documented in DESIGN.md."
+gate            = "G3"
+id              = "SC-G03-P1-03"
+kind            = "documentation"
+owner_task      = "T-G03-04"
+priority        = "P1"
+title           = "Search degradation documented"
+verification_id = "VERIFY-G03-04"
+
+[[scenario]]
+acceptance      = "Clipboard store/load requests are honored only when the switch is on; denied requests receive no data."
+gate            = "G3"
+id              = "SC-G03-P1-04"
+kind            = "headless"
+owner_task      = "T-G03-05"
+priority        = "P1"
+title           = "OSC 52 gated"
+verification_id = "VERIFY-G03-05"
+
+[[scenario]]
+acceptance      = "Bell highlights the tab when visible and notifies when the window is hidden, per switches."
+gate            = "G3"
+id              = "SC-G03-P1-05"
+kind            = "ui"
+owner_task      = "T-G03-05"
+priority        = "P1"
+title           = "Bell surfaces"
+verification_id = "VERIFY-G03-05"
+
+[[scenario]]
+acceptance      = "Jump chains, key paths, ports, environment, and init commands compile to the expected argv without network access."
+gate            = "G4"
+id              = "SC-G04-P0-01"
+kind            = "headless"
+owner_task      = "T-G04-02"
+priority        = "P0"
+title           = "Transport argument construction"
+verification_id = "VERIFY-G04-02"
+
+[[scenario]]
+acceptance      = "Password/passphrase material never appears in argv, logs, tracing output, or error messages."
+gate            = "G4"
+id              = "SC-G04-P0-02"
+kind            = "headless"
+owner_task      = "T-G04-02"
+priority        = "P0"
+title           = "No secret leakage"
+verification_id = "VERIFY-G04-02"
+
+[[scenario]]
+acceptance      = "A profile connects using agent auth and key auth against a loopback sshd or recorded fixture."
+gate            = "G4"
+id              = "SC-G04-P0-03"
+kind            = "ui"
+owner_task      = "T-G04-02"
+priority        = "P0"
+title           = "Agent and key auth connect"
+verification_id = "VERIFY-G04-02"
+
+[[scenario]]
+acceptance      = "Imported host blocks round-trip to profiles; unknown directives are preserved as comments and never shell-interpolated."
+gate            = "G4"
+id              = "SC-G04-P0-04"
+kind            = "headless"
+owner_task      = "T-G04-04"
+priority        = "P0"
+title           = "Import is strict"
+verification_id = "VERIFY-G04-04"
+
+[[scenario]]
+acceptance      = "Connecting marks the session kind and host in the store; the sessions panel classifies it under ssh:host."
+gate            = "G4"
+id              = "SC-G04-P0-05"
+kind            = "ui"
+owner_task      = "T-G04-04"
+priority        = "P0"
+title           = "Connection status metadata"
+verification_id = "VERIFY-G04-04"
+
+[[scenario]]
+acceptance      = "Create, edit, duplicate, and delete profiles work; jump cycles are rejected."
+gate            = "G4"
+id              = "SC-G04-P1-01"
+kind            = "ui"
+owner_task      = "T-G04-03"
+priority        = "P1"
+title           = "Profile CRUD"
+verification_id = "VERIFY-G04-03"
+
+[[scenario]]
+acceptance      = "Groups can be created, renamed, nested, and deleted; profiles move between groups."
+gate            = "G4"
+id              = "SC-G04-P1-02"
+kind            = "ui"
+owner_task      = "T-G04-03"
+priority        = "P1"
+title           = "Group tree management"
+verification_id = "VERIFY-G04-03"
+
+[[scenario]]
+acceptance      = "All SSH UI strings exist in en-US and zh-CN."
+gate            = "G4"
+id              = "SC-G04-P1-03"
+kind            = "documentation"
+owner_task      = "T-G04-03"
+priority        = "P1"
+title           = "Tier-0 strings complete"
+verification_id = "VERIFY-G04-03"
+
+[[scenario]]
+acceptance      = "Paths and history panels render identical data from the single ActivityStore after every mutation."
+gate            = "G5"
+id              = "SC-G05-P0-01"
+kind            = "headless"
+owner_task      = "T-G05-01"
+priority        = "P0"
+title           = "Shared store projections agree"
+verification_id = "VERIFY-G05-01"
+
+[[scenario]]
+acceptance      = "History and path entries never exceed registered caps; eviction is least-recently-used and lossless for pinned favorites."
+gate            = "G5"
+id              = "SC-G05-P0-02"
+kind            = "headless"
+owner_task      = "T-G05-01"
+priority        = "P0"
+title           = "Caps and LRU shrink"
+verification_id = "VERIFY-G05-01"
+
+[[scenario]]
+acceptance      = "Time, ssh:cwd, and custom-tree views show the same session set under different grouping; switching is instant."
+gate            = "G5"
+id              = "SC-G05-P0-03"
+kind            = "ui"
+owner_task      = "T-G05-02"
+priority        = "P0"
+title           = "Classification views"
+verification_id = "VERIFY-G05-02"
+
+[[scenario]]
+acceptance      = "Search filters by title, cwd, host, and tags with results consistent across all three views."
+gate            = "G5"
+id              = "SC-G05-P0-04"
+kind            = "ui"
+owner_task      = "T-G05-02"
+priority        = "P0"
+title           = "Panel search"
+verification_id = "VERIFY-G05-02"
+
+[[scenario]]
+acceptance      = "With 50+ live sessions, panel interactions stay responsive under store-event debouncing."
+gate            = "G5"
+id              = "SC-G05-P0-05"
+kind            = "ui"
+owner_task      = "T-G05-02"
+priority        = "P0"
+title           = "50-session fluidity"
+verification_id = "VERIFY-G05-02"
+
+[[scenario]]
+acceptance      = "Sessions drag into custom groups; auto-group rules file matching sessions on arrival."
+gate            = "G5"
+id              = "SC-G05-P0-06"
+kind            = "ui"
+owner_task      = "T-G05-03"
+priority        = "P0"
+title           = "Drag-and-drop grouping"
+verification_id = "VERIFY-G05-03"
+
+[[scenario]]
+acceptance      = "Group structure survives restart even when member sessions have exited."
+gate            = "G5"
+id              = "SC-G05-P0-07"
+kind            = "headless"
+owner_task      = "T-G05-03"
+priority        = "P0"
+title           = "Group persistence"
+verification_id = "VERIFY-G05-03"
+
+[[scenario]]
+acceptance      = "On platforms with hide support, closing the window keeps sessions alive and the tray restores them."
+gate            = "G6"
+id              = "SC-G06-P0-01"
+kind            = "ui"
+owner_task      = "T-G06-01"
+priority        = "P0"
+title           = "Close hides when supported"
+verification_id = "VERIFY-G06-01"
+
+[[scenario]]
+acceptance      = "Platforms without a capability fall back per the platform matrix and document the behavior in the UI."
+gate            = "G6"
+id              = "SC-G06-P0-02"
+kind            = "ui"
+owner_task      = "T-G06-01"
+priority        = "P0"
+title           = "Explicit degradation"
+verification_id = "VERIFY-G06-01"
+
+[[scenario]]
+acceptance      = "A second launch wakes the first instance instead of starting a second process."
+gate            = "G6"
+id              = "SC-G06-P0-03"
+kind            = "ui"
+owner_task      = "T-G06-02"
+priority        = "P0"
+title           = "Single instance"
+verification_id = "VERIFY-G06-02"
+
+[[scenario]]
+acceptance      = "Interrupted state writes leave either the old or the new file, never a corrupt one; corruption on load recovers to defaults with a warning."
+gate            = "G6"
+id              = "SC-G06-P0-04"
+kind            = "headless"
+owner_task      = "T-G06-03"
+priority        = "P0"
+title           = "Crash-safe state writes"
+verification_id = "VERIFY-G06-03"

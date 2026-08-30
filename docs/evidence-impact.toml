@@ -1,0 +1,75 @@
+relevant_roots = [
+  "AGENTS.md",
+  "Cargo.toml",
+  "Cargo.lock",
+  "deny.toml",
+  "rustfmt.toml",
+  "taplo.toml",
+  ".gitignore",
+  ".github/**",
+  "crates/**",
+  "docs/**",
+  "scripts/**",
+  "packaging/**",
+]
+schema = "recoil.woooo.tech/schemas/evidence-impact-v1"
+status = "accepted"
+
+# Rules may overlap. Exactly one matching rule with the greatest precedence
+# owns a path. Adding a path rule requires naming its owning task.
+
+[[path_rule]]
+globs            = ["AGENTS.md", ".gitignore", "rustfmt.toml", "taplo.toml", "deny.toml"]
+id               = "IMPACT-GOVERNANCE"
+owner_task       = "T-G00-02"
+precedence       = 100
+verification_ids = ["VERIFY-G00-02", "VERIFY-G00-05"]
+
+[[path_rule]]
+globs            = ["Cargo.toml", "Cargo.lock", "crates/**/Cargo.toml"]
+id               = "IMPACT-WORKSPACE"
+owner_task       = "T-G00-01"
+precedence       = 90
+verification_ids = ["VERIFY-G00-01"]
+
+[[path_rule]]
+globs            = [".github/**"]
+id               = "IMPACT-CI"
+owner_task       = "T-G00-04"
+precedence       = 90
+verification_ids = ["VERIFY-G00-04"]
+
+[[path_rule]]
+globs            = ["scripts/**"]
+id               = "IMPACT-SCRIPTS"
+owner_task       = "T-G00-03"
+precedence       = 90
+verification_ids = ["VERIFY-G00-03"]
+
+[[path_rule]]
+globs            = ["docs/**", "README.md"]
+id               = "IMPACT-DOCS"
+owner_task       = "T-G00-02"
+precedence       = 80
+verification_ids = ["VERIFY-G00-02"]
+
+[[path_rule]]
+globs            = ["crates/recoil-core/**"]
+id               = "IMPACT-CORE-CONFIG"
+owner_task       = "T-G00-06"
+precedence       = 50
+verification_ids = ["VERIFY-G00-06"]
+
+[[path_rule]]
+globs            = ["crates/recoil-term/**"]
+id               = "IMPACT-APP"
+owner_task       = "T-G01-01"
+precedence       = 40
+verification_ids = ["VERIFY-G01-01"]
+
+[[path_rule]]
+globs            = ["packaging/**"]
+id               = "IMPACT-PACKAGING"
+owner_task       = "T-G07-02"
+precedence       = 90
+verification_ids = ["VERIFY-G07-02"]

@@ -1,0 +1,152 @@
+schema = "recoil.woooo.tech/schemas/decision-register-v1"
+status = "accepted"
+
+# This register contains product defaults, protocol/interop constants, budget
+# values, and evidence values. Every constant names its owning task.
+
+[[constant]]
+id         = "toolchain.msrv"
+owner_task = "T-G00-01"
+source     = "crates/Cargo.toml rust-version"
+unit       = "Rust version"
+value      = "1.96.0"
+
+[[constant]]
+id         = "dependency.woocraft-rev"
+owner_task = "T-G00-01"
+source     = "Cargo.toml workspace.dependencies.woocraft"
+unit       = "git revision"
+value      = "0135e39983a39a1b3450fcaa2ce628ef28a4a0a8"
+
+[[constant]]
+id         = "terminal.font-size-default"
+owner_task = "T-G00-06"
+source     = "woocraft theme default font_size px(16.)"
+unit       = "css pixels"
+value      = "16"
+
+[[constant]]
+id         = "terminal.font-size-min"
+owner_task = "T-G00-06"
+source     = "recoil-core config validation"
+unit       = "css pixels"
+value      = "6"
+
+[[constant]]
+id         = "terminal.font-size-max"
+owner_task = "T-G00-06"
+source     = "recoil-core config validation"
+unit       = "css pixels"
+value      = "128"
+
+[[constant]]
+id         = "terminal.scrolling-history-default"
+owner_task = "T-G00-06"
+source     = "woocraft-terminal DEFAULT_SCROLLING_HISTORY"
+unit       = "lines"
+value      = "10000"
+
+[[constant]]
+id         = "terminal.scrolling-history-min"
+owner_task = "T-G00-06"
+source     = "recoil-core config validation"
+unit       = "lines"
+value      = "100"
+
+[[constant]]
+id         = "terminal.scrolling-history-max"
+owner_task = "T-G00-06"
+source     = "woocraft-terminal MAX_SCROLLING_HISTORY"
+unit       = "lines"
+value      = "1000000"
+
+[[constant]]
+id         = "terminal.scrolling-history-unlimited"
+owner_task = "T-G02-05"
+source     = "disk-backed unlimited scrollback"
+unit       = "sentinel lines"
+value      = "0"
+
+[[constant]]
+id         = "terminal.event-batch-interval"
+owner_task = "T-G01-03"
+source     = "woocraft TerminalView event pump"
+unit       = "milliseconds"
+value      = "4"
+
+[[constant]]
+id         = "stores.metadata-event-debounce"
+owner_task = "T-G01-02"
+source     = "title/cwd/exit events into stores"
+unit       = "milliseconds"
+value      = "500"
+
+[[constant]]
+id         = "stores.state-write-debounce"
+owner_task = "T-G05-04"
+source     = "state.json debounced persistence"
+unit       = "milliseconds"
+value      = "2000"
+
+[[constant]]
+id         = "activity.history-cap"
+owner_task = "T-G05-01"
+source     = "closed-session history entries"
+unit       = "records"
+value      = "1000"
+
+[[constant]]
+id         = "activity.path-cap"
+owner_task = "T-G05-01"
+source     = "recent-path entries"
+unit       = "records"
+value      = "5000"
+
+[[constant]]
+id         = "i18n.tier0-locales"
+owner_task = "T-G00-02"
+source     = "ADR-0003"
+unit       = "locale"
+value      = "en-US,zh-CN"
+
+[[constant]]
+id         = "config.dir-name"
+owner_task = "T-G00-06"
+source     = "XDG config home"
+unit       = "directory"
+value      = "recoil"
+
+[[constant]]
+id         = "single-instance.timeout"
+owner_task = "T-G06-02"
+source     = "DBus activation deadline"
+unit       = "seconds"
+value      = "5"
+
+[[constant]]
+id         = "hyperlink.allowed-schemes"
+owner_task = "T-G03-01"
+source     = "link open allowlist"
+unit       = "scheme"
+value      = "http,https,file,mailto"
+
+[[constant]]
+id         = "performance.input-latency-p99-additional"
+owner_task = "T-G07-03"
+source     = "keystroke-to-paint overhead over the bare woocraft terminal"
+unit       = "milliseconds"
+value      = "8"
+
+[[constant]]
+id         = "performance.panel-interaction-p99"
+owner_task = "T-G07-03"
+source     = "panel interaction with 50+ sessions"
+unit       = "milliseconds"
+value      = "100"
+
+[[constant]]
+id         = "performance.soak-duration"
+owner_task = "T-G07-03"
+source     = "E2E-09 soak with 100 sessions"
+unit       = "hours"
+value      = "4"

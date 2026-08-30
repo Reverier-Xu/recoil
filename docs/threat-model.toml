@@ -1,0 +1,73 @@
+schema = "recoil.woooo.tech/schemas/threat-model-v1"
+status = "accepted"
+
+# Recoil is a desktop terminal: the model below covers the surfaces where a
+# hostile remote side (programs running in the terminal, ssh servers) or a
+# hostile local file can cause harm. Every threat maps to mitigating
+# scenarios and names its owning task.
+
+[[threat]]
+id            = "THR-001"
+mandatory_key = "osc52-clipboard"
+mitigation    = "Gate OSC 52 clipboard store/load behind a feature switch that is visible in settings; deny all requests when off and expose a confirmation policy for load requests."
+owner_task    = "T-G03-05"
+priority      = "P0"
+residual      = "A user who enables OSC 52 grants clipboard access to everything running in that session."
+scenario_ids  = ["SC-G03-P1-04"]
+status        = "accepted"
+title         = "Hostile program exfiltrates or replaces clipboard content"
+
+[[threat]]
+id            = "THR-002"
+mandatory_key = "link-opening"
+mitigation    = "Open links only on explicit modifier-click, only for allowlisted schemes (http, https, file, mailto), through the platform opener; never open on hover."
+owner_task    = "T-G03-01"
+priority      = "P0"
+residual      = "Opening an allowlisted but hostile URL remains a user action."
+scenario_ids  = ["SC-G03-P0-01", "SC-G03-P0-03", "SC-G03-P0-06"]
+status        = "accepted"
+title         = "Malicious or unexpected URI opened from terminal content"
+
+[[threat]]
+id            = "THR-003"
+mandatory_key = "title-spoofing"
+mitigation    = "Render titles as plain text only; never interpret markup, control characters, or ANSI escapes from the title in tab labels or notifications."
+owner_task    = "T-G01-03"
+priority      = "P1"
+residual      = "A misleading plain-text title can still confuse the user."
+scenario_ids  = ["SC-G01-P0-06"]
+status        = "accepted"
+title         = "Terminal title and content spoofing"
+
+[[threat]]
+id            = "THR-004"
+mandatory_key = "credential-exposure"
+mitigation    = "Keep passwords and passphrases out of config files and state files; delegate to the ssh agent; never place secret material in argv, tracing output, or error text; state files carry references only."
+owner_task    = "T-G04-02"
+priority      = "P0"
+residual      = "The underlying ssh binary's own environment (agent socket) remains within its normal trust boundary."
+scenario_ids  = ["SC-G04-P0-01", "SC-G04-P0-02", "SC-G04-P0-04"]
+status        = "accepted"
+title         = "SSH credentials leaked through files, argv, or logs"
+
+[[threat]]
+id            = "THR-005"
+mandatory_key = "config-injection"
+mitigation    = "Parse imported and user configuration with strict, bounded parsers; treat every field as data, never as shell text; validate before persistence and fail closed on unknown semantics."
+owner_task    = "T-G04-04"
+priority      = "P0"
+residual      = "A user who imports a hostile ssh config accepts its command/init fields as their own configuration."
+scenario_ids  = ["SC-G04-P0-04", "SC-G02-P1-02"]
+status        = "accepted"
+title         = "Tampered configuration or imported ssh config executes attacker input"
+
+[[threat]]
+id            = "THR-006"
+mandatory_key = "state-corruption"
+mitigation    = "Write state atomically (temp file plus rename), validate on load, and recover to defaults with a visible warning instead of trusting unparseable content."
+owner_task    = "T-G05-04"
+priority      = "P1"
+residual      = "A local attacker with write access to the config directory controls the user's configuration."
+scenario_ids  = ["SC-G06-P0-04"]
+status        = "accepted"
+title         = "Corrupt or tampered state file degrades session management"
