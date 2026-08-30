@@ -1,8 +1,10 @@
-[package]
-name = "recoil-term"
+[workspace]
+members  = ["crates/*"]
+resolver = "3"
 
+[workspace.package]
 authors      = ["Reverier-Xu <reverier.xu@woooo.tech>"]
-description  = "Terminal based on woocraft and GPUI."
+description  = "IDE-style terminal emulator built on woocraft and GPUI."
 edition      = "2024"
 homepage     = "https://recoil.woooo.tech"
 license      = "GPL-2.0-or-later"
@@ -11,4 +13,42 @@ repository   = "https://github.com/Reverier-Xu/recoil"
 rust-version = "1.96"
 version      = "0.0.1"
 
-[dependencies]
+# Everything GUI-related must enter through the `woocraft` re-exports so the
+# workspace resolves the exact upstream revisions of gpui and
+# woocraft-terminal. Never add direct git dependencies on gpui, zed, or
+# alacritty; see AGENTS.md and docs/roadmap.md architecture rules.
+[workspace.dependencies]
+recoil-core = { path = "crates/recoil-core" }
+woocraft = { git = "https://github.com/Reverier-Xu/woocraft", rev = "0135e39983a39a1b3450fcaa2ce628ef28a4a0a8", default-features = false, features = [
+  "terminal",
+] }
+woocraft-terminal = { git = "https://github.com/Reverier-Xu/woocraft", rev = "0135e39983a39a1b3450fcaa2ce628ef28a4a0a8", package = "woocraft-terminal" }
+
+anyhow = "1.0"
+chrono = { version = "0.4", default-features = false, features = [
+  "clock",
+  "serde",
+  "std",
+] }
+rust-i18n = "4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+toml = "1.1"
+tracing = { version = "0.1", features = ["attributes"] }
+ulid = { version = "1.2", features = ["serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro    = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
+todo         = "deny"
+
+[profile.release]
+codegen-units = 1
+lto           = "thin"
+opt-level     = 3
+strip         = true

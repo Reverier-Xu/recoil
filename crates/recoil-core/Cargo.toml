@@ -1,0 +1,25 @@
+[package]
+description = "Headless domain model for Recoil: configuration, session metadata, classification, and persistence."
+name        = "recoil-core"
+
+authors      = { workspace = true }
+edition      = { workspace = true }
+homepage     = { workspace = true }
+license      = { workspace = true }
+publish      = false
+readme       = { workspace = true }
+repository   = { workspace = true }
+rust-version = { workspace = true }
+version      = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono     = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+toml       = { workspace = true }
+tracing    = { workspace = true }
+ulid       = { workspace = true }

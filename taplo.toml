@@ -1,10 +1,10 @@
 include = [
   "Cargo.toml",
   "crates/**/*.toml",
-  "config/config.sample.toml",
-  ".cargo/config.toml",
+  "deny.toml",
   "taplo.toml",
   "rustfmt.toml",
+  "docs/*.toml",
 ]
 
 [formatting]
