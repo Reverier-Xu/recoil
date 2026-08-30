@@ -137,12 +137,17 @@ fn descendants(root_pid: u32) -> Vec<ProcessSnapshot> {
 
 /// The remote state parsed from the shell title ssh forwards verbatim.
 ///
-/// Two formats cover the common remote shells:
+/// Zero-configuration title formats seen in the wild:
 ///
-/// - fish default: `<command>: <path>` (`vim: ~/src`, idle: `fish: ~`) —
-///   carries the remote foreground program and the remote cwd;
-/// - iTerm2/bash style: `user@host: <path>` — identifies the connection, the
-///   left side is not a program.
+/// - bash with the Debian-family default bashrc: `user@host:path` — the left
+///   side identifies the connection, it is not a program;
+/// - fish ≤ 3 style and many custom prompts: `command: path`;
+/// - fish 4's default `fish_title`: `[host] command path`, or `[host] path`
+///   when idle;
+/// - a bare path (`/srv/www`, `~/src`).
+///
+/// fish and zsh ship without a title by default; servers running them stay
+/// at the `ssh - host` fallback until a one-line rc snippet opts in.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 #[derive(Default)]
 struct RemoteTitle {
@@ -152,25 +157,56 @@ struct RemoteTitle {
   cwd: Option<PathBuf>,
 }
 
+/// A title token that starts a path.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn is_pathy(token: &str) -> bool {
+  token.starts_with('/') || token.starts_with('~')
+}
+
+/// Parses the fish 4 title body (`command path`, `path`, `command`): the
+/// first pathy token starts the cwd, the words before it name the program.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn space_separated_title(body: &str) -> RemoteTitle {
+  let tokens: Vec<&str> = body.split_whitespace().collect();
+  match tokens.iter().position(|token| is_pathy(token)) {
+    Some(index) => RemoteTitle {
+      program: (index > 0).then(|| tokens[..index].join(" ")),
+      cwd: Some(PathBuf::from(tokens[index..].join(" "))),
+    },
+    // A lone word is a program name (a full-screen program's title).
+    None => RemoteTitle {
+      program: (tokens.len() == 1).then(|| tokens[0].to_owned()),
+      cwd: None,
+    },
+  }
+}
+
 /// Parses a remote shell title into the remote program and remote cwd.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn parse_remote_title(title: &str) -> RemoteTitle {
-  let Some((left, right)) = title.split_once(':') else {
+  let title = title.trim();
+  if title.is_empty() {
     return RemoteTitle::default();
-  };
-  let path = right.trim();
-  let cwd = if path.is_empty() {
-    None
-  } else {
-    Some(PathBuf::from(path))
-  };
-  let left = left.trim();
-  let program = if left.is_empty() || left.contains('@') || left.contains(char::is_whitespace) {
-    None
-  } else {
-    Some(left.to_owned())
-  };
-  RemoteTitle { program, cwd }
+  }
+  // A pathy title containing a colon (`/srv/a:b`) is a path, not a
+  // `something: path` pair.
+  if !is_pathy(title)
+    && let Some((left, right)) = title.split_once(':')
+  {
+    let path = right.trim();
+    let cwd = (!path.is_empty()).then(|| PathBuf::from(path));
+    let left = left.trim();
+    let program = (!left.is_empty() && !left.contains('@') && !left.contains(char::is_whitespace))
+      .then(|| left.to_owned());
+    return RemoteTitle { program, cwd };
+  }
+  // fish 4 marks ssh sessions with a bracketed host; strip it.
+  let body = title
+    .strip_prefix('[')
+    .and_then(|rest| rest.split_once(']'))
+    .map(|(_, rest)| rest.trim())
+    .unwrap_or(title);
+  space_separated_title(body)
 }
 
 /// Picks the interactive ssh client among the processes sharing the tty
@@ -197,8 +233,14 @@ fn observation_from(
   root: Option<&ProcessSnapshot>, snapshots: &[ProcessSnapshot], tpgid: Option<i32>,
   title: Option<&str>,
 ) -> Observation {
+  // The foreground group may include the root itself: the idle shell owns
+  // its group, and a profile-spawned ssh client (G4) IS the session root.
   let foreground: Vec<&ProcessSnapshot> = match tpgid {
-    Some(tpgid) => snapshots.iter().filter(|s| s.pgrp == tpgid).collect(),
+    Some(tpgid) => snapshots
+      .iter()
+      .chain(root)
+      .filter(|s| s.pgrp == tpgid)
+      .collect(),
     None => Vec::new(),
   };
 
@@ -354,8 +396,46 @@ mod tests {
     assert_eq!(iterm.program, None);
     assert_eq!(iterm.cwd.as_deref(), Some(std::path::Path::new("/srv/www")));
 
-    // Paths may contain whitespace; titleless and colonless input parses to
-    // nothing.
+    // bash's Debian-family default: no space after the colon.
+    let bash = parse_remote_title("ops@srv-07:~/deploy/current");
+    assert_eq!(bash.program, None);
+    assert_eq!(
+      bash.cwd.as_deref(),
+      Some(std::path::Path::new("~/deploy/current"))
+    );
+
+    // fish 4's default: bracketed host, command and path separated by
+    // spaces; the path may itself contain spaces.
+    let fish4 = parse_remote_title("[srv-07] vim ~/my dir");
+    assert_eq!(fish4.program.as_deref(), Some("vim"));
+    assert_eq!(fish4.cwd.as_deref(), Some(std::path::Path::new("~/my dir")));
+    let fish4_idle = parse_remote_title("[srv-07] ~");
+    assert_eq!(fish4_idle.program, None);
+    assert_eq!(fish4_idle.cwd.as_deref(), Some(std::path::Path::new("~")));
+    let fish4_multi = parse_remote_title("[srv-07] sudo systemctl status /etc");
+    assert_eq!(
+      fish4_multi.program.as_deref(),
+      Some("sudo systemctl status")
+    );
+
+    // Bare paths and lone program names.
+    let bare = parse_remote_title("/srv/www");
+    assert_eq!(bare.program, None);
+    assert_eq!(bare.cwd.as_deref(), Some(std::path::Path::new("/srv/www")));
+    let lone = parse_remote_title("htop");
+    assert_eq!(lone.program.as_deref(), Some("htop"));
+    assert_eq!(lone.cwd, None);
+
+    // A path containing a colon is a path, not a `left: path` pair.
+    let colon_path = parse_remote_title("/srv/a:b");
+    assert_eq!(colon_path.program, None);
+    assert_eq!(
+      colon_path.cwd.as_deref(),
+      Some(std::path::Path::new("/srv/a:b"))
+    );
+
+    // Paths may contain whitespace; titleless and unrecognizable input
+    // parses to nothing.
     let spaced = parse_remote_title("fish: ~/my dir");
     assert_eq!(
       spaced.cwd.as_deref(),
@@ -365,6 +445,8 @@ mod tests {
     assert_eq!(empty.program.as_deref(), Some("fish"));
     assert_eq!(empty.cwd, None);
     assert!(parse_remote_title("no colon here").cwd.is_none());
+    assert!(parse_remote_title("some random words").program.is_none());
+    assert!(parse_remote_title("").cwd.is_none());
   }
 
   #[test]
@@ -438,5 +520,134 @@ mod tests {
     // Idle prompt: the foreground is the shell itself.
     let observed = observation_from(Some(&shell), &snapshots, Some(100), None);
     assert_eq!(observed.process.as_deref(), Some("fish"));
+  }
+}
+
+/// End-to-end validation of the `/proc` machinery against real PTYs: the
+/// pure heuristics above mean nothing if the kernel plumbing (tpgid, pgrp,
+/// children) is misread. A copy of `yes` named `ssh` stands in for a real
+/// ssh client — the observer reads `comm` and `args`, never the binary.
+#[cfg(all(test, target_os = "linux"))]
+mod pty_tests {
+  use std::time::Duration;
+
+  use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
+
+  use super::*;
+
+  struct TestDir(PathBuf);
+
+  impl TestDir {
+    /// A unique directory per test: tests in one process share the pid, so
+    /// a plain pid-based path would let one test's cleanup delete another
+    /// test's staged binaries.
+    fn new() -> Self {
+      static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+      let path = std::env::temp_dir().join(format!(
+        "recoil-observer-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+      ));
+      std::fs::create_dir_all(&path).expect("create temp dir");
+      Self(path)
+    }
+  }
+
+  impl Drop for TestDir {
+    fn drop(&mut self) {
+      let _ = std::fs::remove_dir_all(&self.0);
+    }
+  }
+
+  /// Polls the observer until `ok` holds (at most ~10s).
+  fn observe_until(
+    stage: &str, session: &TerminalSession, root_pid: u32, ok: impl Fn(&Observation) -> bool,
+  ) -> Observation {
+    let mut last = None;
+    for _ in 0..100 {
+      let observed = observe(root_pid, None);
+      if ok(&observed) {
+        return observed;
+      }
+      last = Some(observed);
+      std::thread::sleep(Duration::from_millis(100));
+    }
+    let last = last.map(|o| (o.process, o.cwd, o.ssh.map(|s| s.host)));
+    let tree: Vec<_> = descendants(root_pid)
+      .iter()
+      .map(|s| (s.comm.clone(), s.pgrp))
+      .collect();
+    let tpgid = read_tpgid(root_pid);
+    let screen = session.last_n_non_empty_lines(8).join(" | ");
+    panic!(
+      "stage {stage}: condition not met within 10s; last: {last:?}, tpgid: {tpgid:?}, tree: {tree:?}, screen: {screen}"
+    );
+  }
+
+  #[test]
+  fn detects_foreground_processes_in_a_real_pty() {
+    let dir = TestDir::new();
+    let fake = dir.0.join("ssh");
+    std::fs::copy("/usr/bin/sleep", &fake).expect("stage the fake ssh binary");
+    let session = TerminalSession::spawn(
+      SpawnOptions {
+        shell: Some(("bash".to_owned(), vec!["-i".to_owned()])),
+        env: vec![("TERM".to_owned(), "dumb".to_owned())],
+        ..Default::default()
+      },
+      TerminalBounds::default(),
+    )
+    .expect("spawn bash");
+    let root = session.pid().expect("shell pid");
+
+    // Idle: the foreground is the shell itself.
+    let idle = observe_until("idle", &session, root, |o| o.process.is_some());
+    assert_eq!(idle.process.as_deref(), Some("bash"));
+    assert!(idle.ssh.is_none());
+
+    // A foreground job is picked by its process group.
+    session.input_str("sleep 30\n");
+    let job = observe_until("sleep", &session, root, |o| {
+      o.process.as_deref() == Some("sleep")
+    });
+    assert!(job.ssh.is_none());
+    session.input_str("\x03"); // Ctrl-C
+    observe_until("back-to-bash", &session, root, |o| {
+      o.process.as_deref() == Some("bash")
+    });
+
+    // An ssh client in the foreground is a connection; its command line
+    // names the host. The full path keeps the test independent of the
+    // shell's PATH setup; the kernel still reports the comm as `ssh`.
+    session.input_str(&format!("{} 3600\n", fake.display()));
+    let connected = observe_until("ssh", &session, root, |o| o.ssh.is_some());
+    let ssh = connected.ssh.expect("ssh detected");
+    assert_eq!(ssh.host, "3600");
+    assert_eq!(connected.process.as_deref(), Some("ssh"));
+
+    session.kill();
+  }
+
+  #[test]
+  fn detects_ssh_as_the_session_root() {
+    // Profile-spawned sessions (G4) run the ssh client AS the root process:
+    // detection must not depend on the client being a descendant.
+    let dir = TestDir::new();
+    let fake = dir.0.join("ssh");
+    std::fs::copy("/usr/bin/sleep", &fake).expect("stage the fake ssh binary");
+    let session = TerminalSession::spawn(
+      SpawnOptions {
+        shell: Some((fake.to_string_lossy().into_owned(), vec!["3600".to_owned()])),
+        ..Default::default()
+      },
+      TerminalBounds::default(),
+    )
+    .expect("spawn fake ssh");
+    let root = session.pid().expect("client pid");
+
+    let connected = observe_until("ssh", &session, root, |o| o.ssh.is_some());
+    assert_eq!(connected.ssh.expect("ssh detected").host, "3600");
+
+    session.kill();
   }
 }
