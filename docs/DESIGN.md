@@ -95,6 +95,20 @@ ADR-0001 is authoritative. Summary:
   and the `ssh:cwd` classification always reflect what the user is doing
   right now.
 - States: `Spawning → Active ⇄ Backgrounded → Exited → Reaped`.
+
+Observation sources, in the style of tmux and iTerm2:
+
+| Source | Covers | Layer |
+| --- | --- | --- |
+| tmux `automatic-rename` style: tty foreground process group (`tpgid`) and `/proc` cwd | local foreground process and cwd | G1 (Linux) |
+| ssh presence and destination from the descendant command lines | ssh detection on Linux | G1 (Linux) |
+| Remote shell title (`user@host: path`), trusted only when ssh is detected | remote cwd heuristic | G1 (Linux) |
+| OSC 7 / OSC 133 passed through the ssh channel | precise remote cwd and remote command | G3 (shell integration, iTerm2-style) |
+| ControlMaster side-channel polling | precise remote process and cwd for profile sessions | G4 (reserved) |
+
+Scans are event-driven: they run once at spawn and on every title change,
+with a single chained liveness check only while ssh is active. There is no
+periodic scanning of local sessions.
 - Close paths: tab close detaches (PTY untouched); dock-tree close kills
   (the only kill affordance for backgrounded sessions); root exit cleans up
   idempotently; window close backgrounds everything and the tray stays

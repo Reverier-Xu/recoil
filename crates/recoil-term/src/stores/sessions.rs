@@ -6,6 +6,7 @@
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use async_channel::Sender;
 use gpui::{App, AppContext as _, Context, Entity, EventEmitter, Global, Task, WeakEntity};
 pub use recoil_core::session::SessionId;
 use recoil_core::session::{
@@ -13,6 +14,12 @@ use recoil_core::session::{
   TransitionOutcome,
 };
 use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
+
+/// How often the ssh-active liveness check runs. Sessions are otherwise
+/// event-driven: scans happen on spawn, on title changes, and on this
+/// targeted check only while ssh is active (a remote disconnect produces no
+/// local events).
+pub(crate) const SSH_LIVENESS_INTERVAL: Duration = Duration::from_secs(5);
 
 /// How often the backgrounded-session watcher polls the child status.
 ///
@@ -39,12 +46,22 @@ pub enum SessionEvent {
 
 struct Watcher(#[allow(dead_code)] Task<()>);
 
+/// The per-session observer: a scan task fed by triggers, plus its trigger
+/// channel. `Triggering` replaces the looped timer with an event-driven
+/// scan schedule; the only periodic trigger is the ssh-active liveness
+/// check.
+struct Observer {
+  #[allow(dead_code)]
+  tasks: Vec<Task<()>>,
+  trigger: Sender<()>,
+}
+
 /// The active-session registry.
 pub struct SessionStore {
   entries: HashMap<SessionId, SessionEntry>,
   sessions: HashMap<SessionId, TerminalSession>,
   watchers: HashMap<SessionId, Watcher>,
-  observers: HashMap<SessionId, Watcher>,
+  observers: HashMap<SessionId, Observer>,
   order: Vec<SessionId>,
   weak: WeakEntity<Self>,
 }
@@ -263,9 +280,9 @@ impl SessionStore {
     self.observe(id, |meta| meta.observation.cwd = Some(cwd), cx);
   }
 
-  /// Updates the observed local shell process name (process tree).
-  pub fn observe_shell(&mut self, id: SessionId, shell: String, cx: &mut Context<Self>) {
-    self.observe(id, |meta| meta.observation.shell = Some(shell), cx);
+  /// Updates the observed foreground process name (tty foreground group).
+  pub fn observe_process(&mut self, id: SessionId, process: String, cx: &mut Context<Self>) {
+    self.observe(id, |meta| meta.observation.process = Some(process), cx);
   }
 
   /// Updates the observed ssh connection (profile spawn, shell integration).
@@ -318,9 +335,27 @@ impl SessionStore {
       .and_then(|entry| entry.meta.title.clone())
   }
 
-  /// Keeps the per-session observation task; it self-terminates when the
-  /// entry leaves the registry.
-  pub fn set_observer(&mut self, id: SessionId, task: Task<()>) {
-    self.observers.insert(id, Watcher(task));
+  /// Keeps the per-session observation tasks; they self-terminate when the
+  /// entry leaves the registry and the trigger channel closes.
+  pub fn set_observer(&mut self, id: SessionId, tasks: Vec<Task<()>>, trigger: Sender<()>) {
+    self.observers.insert(id, Observer { tasks, trigger });
+  }
+
+  /// Requests an immediate observation scan of the session (title changed,
+  /// user input, ...). Coalesced: pending triggers are drained per scan.
+  pub fn trigger_scan(&self, id: SessionId) {
+    if let Some(observer) = self.observers.get(&id) {
+      // The channel is unbounded, so a full queue cannot happen; the drain
+      // in the observer loop coalesces bursts.
+      let _ = observer.trigger.try_send(());
+    }
+  }
+
+  /// Whether the session is currently inside an ssh connection.
+  pub fn ssh_active(&self, id: SessionId) -> Option<bool> {
+    self
+      .entries
+      .get(&id)
+      .map(|entry| entry.meta.ssh().is_some())
   }
 }

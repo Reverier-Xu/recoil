@@ -73,10 +73,14 @@ impl TerminalPanel {
   ) {
     match event {
       TerminalViewEvent::TitleChanged(title) => {
-        // The title feeds the observation heuristics; the tab label is
-        // derived from the observation instead.
+        // Titles drive the observation heuristics: remote shells update them
+        // on every prompt, so a title change is the event trigger for a
+        // rescan. The label itself is derived from the observation.
         let id = self.id;
-        session_store(cx).update(cx, |store, cx| store.set_title(id, title.clone(), cx));
+        session_store(cx).update(cx, |store, cx| {
+          store.set_title(id, title.clone(), cx);
+          store.trigger_scan(id);
+        });
       }
       TerminalViewEvent::Exit(status) => {
         let id = self.id;

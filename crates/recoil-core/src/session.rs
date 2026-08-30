@@ -132,9 +132,9 @@ pub struct SessionObservation {
   pub cwd: Option<PathBuf>,
   /// The observed ssh connection, when the session is inside one.
   pub ssh: Option<SshObservation>,
-  /// The name of the local shell process (e.g. `fish`, `zsh`), observed
-  /// from the process tree.
-  pub shell: Option<String>,
+  /// The name of the foreground process (e.g. `fish`, `vim`, `ssh`),
+  /// observed from the tty foreground process group.
+  pub process: Option<String>,
 }
 
 impl SessionObservation {
@@ -193,7 +193,7 @@ impl SessionMeta {
           user: None,
           profile_id: Some(profile_id.clone()),
         }),
-        shell: Some("ssh".to_owned()),
+        process: Some("ssh".to_owned()),
       },
       origin: SessionOrigin::SshProfile { profile_id },
       ..Self::new_local(id, pid)

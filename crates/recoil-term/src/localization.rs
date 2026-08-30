@@ -28,34 +28,20 @@ pub fn init(_cx: &mut App) {
 /// when nothing has been observed yet (e.g. non-Linux platforms), then to
 /// the session kind.
 pub fn session_label(meta: &SessionMeta) -> String {
-  let process = if meta.ssh().is_some() {
-    Some("ssh".to_owned())
-  } else {
-    meta.observation.shell.clone()
-  };
+  let process = meta.observation.process.clone();
   let cwd_last = meta.observation.cwd_last_segment();
+  let ssh = meta.ssh();
 
-  match (process, cwd_last) {
-    (Some(process), Some(segment)) if process != segment => format!("{process} - {segment}"),
-    (Some(process), Some(segment)) if meta.ssh().is_some() => {
-      // "ssh - ssh" would be ambiguous; the host identifies the session.
-      format!(
-        "{process} - {}",
-        meta.ssh().map(|ssh| ssh.host.clone()).unwrap_or(segment)
-      )
-    }
-    (Some(process), _) if meta.ssh().is_some() => {
-      format!(
-        "{process} - {}",
-        meta.ssh().map(|ssh| ssh.host.clone()).unwrap_or_default()
-      )
-    }
-    (Some(process), _) => process,
-    (None, Some(segment)) => segment,
-    (None, None) => meta
-      .title
-      .clone()
-      .unwrap_or_else(|| t!("session.kind.local").to_string()),
+  match (process, cwd_last, ssh) {
+    (Some(process), Some(segment), _) if process != segment => format!("{process} - {segment}"),
+    // "ssh - ssh" would be ambiguous; the host identifies the session.
+    (Some(process), _, Some(ssh)) => format!("{process} - {}", ssh.host),
+    (Some(process), _, None) => process,
+    (None, Some(segment), _) => segment,
+    // No observations yet: fall back to the kind label. The OSC title is
+    // metadata for the heuristics, never a label (it is often just a path).
+    (None, None, Some(ssh)) => ssh.host.clone(),
+    (None, None, None) => t!("session.kind.local").to_string(),
   }
 }
 
@@ -65,28 +51,68 @@ mod tests {
 
   use super::*;
 
+  /// Tier-0 locales must carry identical key sets; a key present in one and
+  /// missing from the other fails the gate (ADR-0003).
+  #[test]
+  fn tier0_locale_key_sets_are_equal() {
+    use std::collections::BTreeMap;
+
+    fn flatten(prefix: &str, value: &toml::Value, keys: &mut Vec<String>) {
+      match value {
+        toml::Value::Table(table) => {
+          for (key, child) in table {
+            flatten(&format!("{prefix}.{key}"), child, keys);
+          }
+        }
+        toml::Value::String(text) => {
+          assert!(!text.is_empty(), "empty translation for key {prefix}");
+          keys.push(prefix.trim_start_matches('.').to_owned());
+        }
+        _ => panic!("locale values must be strings: {prefix}"),
+      }
+    }
+
+    fn keys(file: &str) -> BTreeMap<String, bool> {
+      let value: toml::Value = toml::from_str(file).expect("locale file must parse");
+      let mut keys = Vec::new();
+      flatten("", &value, &mut keys);
+      keys.into_iter().map(|key| (key, true)).collect()
+    }
+
+    let en = keys(include_str!("../locales/en-us.toml"));
+    let zh = keys(include_str!("../locales/zh-hans.toml"));
+    let missing_in_zh: Vec<_> = en.keys().filter(|key| !zh.contains_key(*key)).collect();
+    let missing_in_en: Vec<_> = zh.keys().filter(|key| !en.contains_key(*key)).collect();
+    assert!(
+      missing_in_zh.is_empty() && missing_in_en.is_empty(),
+      "locale key mismatch: missing in zh-hans {missing_in_zh:?}, missing in en-us {missing_in_en:?}"
+    );
+  }
+
   /// One sequential test: the locale is a process-global, so tier-0
   /// completeness and label behavior cannot run concurrently.
   #[test]
   fn tier0_locales_and_labels() {
     woocraft::set_locale("en-us");
     let mut meta = SessionMeta::new_local(SessionId::generate(), None);
-    // No observations yet: fall back to the kind label.
+    // No observations yet: fall back to the kind label, never a raw path.
     assert_eq!(session_label(&meta), "Local");
+    meta.title = Some("/home/u/somewhere".to_owned());
+    assert_eq!(session_label(&meta), "Local", "osc titles are never labels");
 
-    // The product format: process name - last cwd segment.
-    meta.observation.shell = Some("fish".to_owned());
+    // The product format: foreground process - last cwd segment.
+    meta.observation.process = Some("fish".to_owned());
     meta.observation.cwd = Some("/home/u/recoil".into());
     assert_eq!(session_label(&meta), "fish - recoil");
 
-    // Entering ssh renames the session; the local cwd observation is
-    // cleared, and the remote cwd comes from the remote shell's title.
+    // Entering ssh: the label becomes "ssh - host" until the remote cwd
+    // arrives through the remote shell's title.
     meta.observation.ssh = Some(recoil_core::session::SshObservation {
       host: "build.internal".to_owned(),
       user: None,
       profile_id: None,
     });
-    meta.observation.shell = Some("ssh".to_owned());
+    meta.observation.process = Some("ssh".to_owned());
     meta.observation.cwd = None;
     assert_eq!(session_label(&meta), "ssh - build.internal");
     meta.observation.cwd = Some("~/projects".into());

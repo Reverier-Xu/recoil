@@ -4785,12 +4785,14 @@ name = "recoil-term"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "async-channel",
  "gpui",
  "gpui_platform",
  "recoil-core",
  "rust-i18n",
  "serde",
  "serde_json",
+ "toml 1.1.4+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
  "woocraft",

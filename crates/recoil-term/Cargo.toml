@@ -28,8 +28,12 @@ woocraft          = { workspace = true }
 woocraft-terminal = { workspace = true }
 
 anyhow             = { workspace = true }
+async-channel      = { workspace = true }
 rust-i18n          = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }
