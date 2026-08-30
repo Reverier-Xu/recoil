@@ -219,7 +219,6 @@ impl Render for SessionsPanel {
         h_flex()
           .id(SharedString::from(format!("session-{id}")))
           .p_1()
-          .mr_1()
           .items_center()
           .rounded_sm()
           .cursor_pointer()
