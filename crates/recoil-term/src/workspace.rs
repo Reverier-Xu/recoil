@@ -303,18 +303,28 @@ pub fn set_app_menu(cx: &mut App) {
 }
 
 /// Registers the default keymap.
+///
+/// In gpui keystrokes `cmd` is the platform key — Cmd on macOS but the
+/// Super/Win key on Linux and Windows, where window managers already own
+/// those combinations. Only macOS gets the ⌘ aliases; every platform keeps
+/// the Ctrl-based bindings.
 pub fn bind_keys(cx: &mut App) {
   use gpui::KeyBinding;
-  cx.bind_keys([
+  #[allow(unused_mut)]
+  let mut keys = vec![
     KeyBinding::new("ctrl-shift-t", NewTerminal, None),
-    KeyBinding::new("cmd-t", NewTerminal, None),
     KeyBinding::new("ctrl-shift-w", CloseActiveTab, None),
-    KeyBinding::new("cmd-w", CloseActiveTab, None),
     KeyBinding::new("ctrl-b", ToggleLeftDock, None),
-    KeyBinding::new("cmd-b", ToggleLeftDock, None),
     KeyBinding::new("ctrl-shift-q", QuitRecoil, None),
+  ];
+  #[cfg(target_os = "macos")]
+  keys.extend([
+    KeyBinding::new("cmd-t", NewTerminal, None),
+    KeyBinding::new("cmd-w", CloseActiveTab, None),
+    KeyBinding::new("cmd-b", ToggleLeftDock, None),
     KeyBinding::new("cmd-q", QuitRecoil, None),
   ]);
+  cx.bind_keys(keys);
 }
 
 /// Subscribes the workspace to store events that affect persisted state.
