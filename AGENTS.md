@@ -61,6 +61,11 @@ tests use `woocraft_terminal::TerminalSession` directly, never a window.
   terminal `Wakeup` events must never invalidate stores or dock panels.
 - Secrets discipline: passwords, passphrases, and key material never enter
   config files, state files, logs, or tracing output.
+- UI typography is uniform: one font family and one font size (16 px by
+  default, configured centrally) shared by the UI and the terminal. Never
+  use `text_xs`/`text_sm`/`text_lg`/`text_xl` or any other per-element size
+  override. Express emphasis with bold (`font_semibold`) and de-emphasis
+  with theme colors/opacity (`muted_foreground`), never with size.
 - Use the standard tools for standard code operations: read files with the
   read tool, locate with grep/rg, and edit with the edit tool. Never edit,
   generate, or patch project files through python/shell one-off scripts

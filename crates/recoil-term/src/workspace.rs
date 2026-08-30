@@ -141,6 +141,11 @@ fn center_active_panel(
 }
 
 fn build_layout(dock_area: &Entity<DockArea>, window: &mut Window, cx: &mut App) {
+  // Shown whenever the main area has no terminal panels left.
+  dock_area.update(cx, |area, cx| {
+    area.set_center_placeholder(crate::welcome::view(window, cx), window, cx);
+  });
+
   // Restore persisted layout when available; fall back to the default
   // assembly. Terminal panels cannot be resurrected across restarts, so the
   // registered deserializer spawns a fresh local session per stored tab.
@@ -313,14 +318,37 @@ pub fn bind_keys(cx: &mut App) {
 }
 
 /// Subscribes the workspace to store events that affect persisted state.
+/// Subscribes the workspace to store events that affect persisted state and
+/// tab visibility.
 pub fn observe_sessions(cx: &mut App) {
   let store = session_store(cx);
   cx.subscribe(
     &store,
     |_, event: &SessionEvent, cx: &mut App| match event {
-      SessionEvent::Exited(..) | SessionEvent::Removed(_) => save_layout(cx),
+      // A reaped session must not leave a dangling tab behind (ADR-0001:
+      // root-exit closes any attached panel automatically).
+      SessionEvent::Exited(id, _) | SessionEvent::Removed(id) => {
+        close_terminal_panel(*id, cx);
+        save_layout(cx);
+      }
       _ => {}
     },
   )
   .detach();
+}
+
+fn close_terminal_panel(id: recoil_core::session::SessionId, cx: &mut App) {
+  let panel_id = format!("terminal:{id}");
+  let Some(window) = cx.active_window() else {
+    return;
+  };
+  window
+    .update(cx, |_, window, cx| {
+      if let Some(area) = active_dock_area(cx) {
+        area.update(cx, |area, cx| {
+          area.close_panel_by_id(&panel_id, window, cx);
+        });
+      }
+    })
+    .ok();
 }

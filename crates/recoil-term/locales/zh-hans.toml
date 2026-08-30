@@ -1,5 +1,10 @@
 app.name = "Recoil"
 
+[welcome]
+closed    = "所有终端会话已关闭。"
+open_hint = "Ctrl+Shift+T 或 文件 → 新建终端 打开一个会话。"
+tree_hint = "会话在后台保持运行，直到从会话树中关闭。"
+
 [session.kind]
 local = "本地"
 
@@ -16,8 +21,11 @@ hint  = "会话历史将在此显示（G5）。"
 title = "历史"
 
 [panels.sessions]
-new_terminal = "新建终端"
-title        = "会话"
+background    = "转入后台"
+close_session = "关闭会话"
+new_terminal  = "新建终端"
+open          = "打开"
+title         = "会话"
 
 [menu]
 close_tab        = "关闭标签页"

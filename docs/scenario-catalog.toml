@@ -57,13 +57,13 @@ title           = "Root exit cleans up"
 verification_id = "VERIFY-G01-02"
 
 [[scenario]]
-acceptance      = "Running a program that sets the OSC 0/2 title renames the tab; a reset restores the default label."
+acceptance      = "The tab label shows `process - last cwd segment` from the live observation; when nothing is observed yet it falls back to the OSC 0/2 title, then the kind label."
 gate            = "G1"
 id              = "SC-G01-P0-06"
 kind            = "ui"
 owner_task      = "T-G01-03"
 priority        = "P0"
-title           = "OSC title tracks tab"
+title           = "Tab label follows observations"
 verification_id = "VERIFY-G01-03"
 
 [[scenario]]

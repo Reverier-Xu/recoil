@@ -12,7 +12,7 @@ use woocraft_terminal::TerminalSession;
 
 use crate::{
   localization::{session_label, t},
-  stores::sessions::{SessionId, session_store},
+  stores::sessions::{SessionEvent, SessionId, session_store, try_session_store},
 };
 
 /// The panel name used for serialization and registry lookup.
@@ -23,8 +23,6 @@ pub const PANEL_NAME: &str = "TerminalPanel";
 pub struct TerminalPanel {
   id: SessionId,
   terminal: Entity<TerminalView>,
-  app_title: Option<String>,
-  fallback_label: SharedString,
   focus_handle: FocusHandle,
 }
 
@@ -38,20 +36,20 @@ impl TerminalPanel {
       .expect("session must exist in the store");
     let terminal = cx.new(|cx| TerminalView::new(session, window, cx));
     cx.subscribe(&terminal, Self::on_terminal_event).detach();
+    // Observation updates (cwd, ssh, shell name) re-label the tab live.
+    cx.subscribe(&store, move |this, _, event: &SessionEvent, cx| {
+      if matches!(event, SessionEvent::MetaChanged(changed) if *changed == id) {
+        let _ = this;
+        cx.notify();
+      }
+    })
+    .detach();
     store.update(cx, |store, cx| store.attach(id, cx));
-
-    let fallback_label = store
-      .read(cx)
-      .entry(id)
-      .map(|entry| session_label(&entry.meta))
-      .unwrap_or_else(|| t!("terminal.default_title").to_string());
 
     let focus_handle = terminal.focus_handle(cx);
     Self {
       id,
       terminal,
-      app_title: None,
-      fallback_label: SharedString::from(fallback_label),
       focus_handle,
     }
   }
@@ -75,10 +73,10 @@ impl TerminalPanel {
   ) {
     match event {
       TerminalViewEvent::TitleChanged(title) => {
-        self.app_title = title.clone();
+        // The title feeds the observation heuristics; the tab label is
+        // derived from the observation instead.
         let id = self.id;
         session_store(cx).update(cx, |store, cx| store.set_title(id, title.clone(), cx));
-        cx.notify();
       }
       TerminalViewEvent::Exit(status) => {
         let id = self.id;
@@ -88,12 +86,16 @@ impl TerminalPanel {
     }
   }
 
-  /// The tab label: OSC title when present, otherwise the session label.
-  fn label(&self) -> SharedString {
-    match &self.app_title {
-      Some(title) if !title.is_empty() => SharedString::from(title.clone()),
-      _ => self.fallback_label.clone(),
-    }
+  /// The tab label: the live observation label (`process - cwd segment`),
+  /// falling back to the session kind.
+  fn label(&self, cx: &App) -> SharedString {
+    let label = try_session_store(cx).and_then(|store| {
+      store
+        .read(cx)
+        .entry(self.id)
+        .map(|entry| session_label(&entry.meta))
+    });
+    SharedString::from(label.unwrap_or_else(|| t!("terminal.default_title").to_string()))
   }
 }
 
@@ -106,12 +108,12 @@ impl Panel for TerminalPanel {
     SharedString::from(format!("terminal:{}", self.id))
   }
 
-  fn tab_name(&self, _cx: &App) -> Option<SharedString> {
-    Some(self.label())
+  fn tab_name(&self, cx: &App) -> Option<SharedString> {
+    Some(self.label(cx))
   }
 
-  fn title(&self, _cx: &App) -> SharedString {
-    self.label()
+  fn title(&self, cx: &App) -> SharedString {
+    self.label(cx)
   }
 
   fn icon(&self, _cx: &App) -> IconName {

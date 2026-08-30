@@ -44,6 +44,7 @@ pub struct SessionStore {
   entries: HashMap<SessionId, SessionEntry>,
   sessions: HashMap<SessionId, TerminalSession>,
   watchers: HashMap<SessionId, Watcher>,
+  observers: HashMap<SessionId, Watcher>,
   order: Vec<SessionId>,
   weak: WeakEntity<Self>,
 }
@@ -61,10 +62,17 @@ pub fn init(cx: &mut App) {
     entries: HashMap::new(),
     sessions: HashMap::new(),
     watchers: HashMap::new(),
+    observers: HashMap::new(),
     order: Vec::new(),
     weak: cx.entity().downgrade(),
   });
   cx.set_global(GlobalSessionStore(store));
+}
+
+/// Returns the global session store, if initialized.
+pub fn try_session_store(cx: &App) -> Option<Entity<SessionStore>> {
+  cx.try_global::<GlobalSessionStore>()
+    .map(|global| global.0.clone())
 }
 
 /// Returns the global session store.
@@ -92,6 +100,7 @@ impl SessionStore {
     self.entries.insert(id, SessionEntry::spawning(meta));
     self.sessions.insert(id, session);
     self.order.push(id);
+    super::observer::start(id, self, cx);
     cx.emit(SessionEvent::Spawned(id));
     tracing::info!(session = %id, pid, "spawned local session");
     Ok(id)
@@ -211,6 +220,7 @@ impl SessionStore {
     }
     self.sessions.remove(&id);
     self.watchers.remove(&id);
+    self.observers.remove(&id);
     self.order.retain(|existing| *existing != id);
     cx.emit(SessionEvent::Removed(id));
     tracing::info!(session = %id, "session reaped");
@@ -253,6 +263,11 @@ impl SessionStore {
     self.observe(id, |meta| meta.observation.cwd = Some(cwd), cx);
   }
 
+  /// Updates the observed local shell process name (process tree).
+  pub fn observe_shell(&mut self, id: SessionId, shell: String, cx: &mut Context<Self>) {
+    self.observe(id, |meta| meta.observation.shell = Some(shell), cx);
+  }
+
   /// Updates the observed ssh connection (profile spawn, shell integration).
   pub fn observe_ssh(
     &mut self, id: SessionId, host: String, profile_id: Option<String>, cx: &mut Context<Self>,
@@ -285,5 +300,27 @@ impl SessionStore {
         cx.emit(SessionEvent::MetaChanged(id));
       }
     }
+  }
+
+  /// The root process pid of a live session, for observation scans.
+  pub fn live_root_pid(&self, id: SessionId) -> Option<u32> {
+    match self.entries.get(&id) {
+      Some(entry) if entry.is_alive() => self.sessions.get(&id).and_then(|s| s.pid()),
+      _ => None,
+    }
+  }
+
+  /// The current application title of a session, for remote cwd heuristics.
+  pub fn title(&self, id: SessionId) -> Option<String> {
+    self
+      .entries
+      .get(&id)
+      .and_then(|entry| entry.meta.title.clone())
+  }
+
+  /// Keeps the per-session observation task; it self-terminates when the
+  /// entry leaves the registry.
+  pub fn set_observer(&mut self, id: SessionId, task: Task<()>) {
+    self.observers.insert(id, Watcher(task));
   }
 }

@@ -78,7 +78,7 @@ macro_rules! skeleton_panel {
           .p_1()
           .bg(cx.theme().background)
           .text_color(cx.theme().muted_foreground)
-          .child(div().text_sm().child(t!($hint_key).to_string()))
+          .child(div().child(t!($hint_key).to_string()))
       }
     }
   };
@@ -272,7 +272,6 @@ impl Render for SessionsPanel {
               .ml_2()
               .flex_1()
               .min_w_0()
-              .text_sm()
               .text_color(theme.foreground)
               .text_ellipsis()
               .child(label),
@@ -295,36 +294,25 @@ impl Render for SessionsPanel {
       .size_full()
       .p_1()
       .bg(theme.background)
-      // Right-click on the blank area opens a new terminal.
-      .context_menu(|menu, _window, _cx| {
-        menu.item(
-          PopupMenuItem::new(t!("panels.sessions.new_terminal").to_string()).on_click(
-            |_, window, cx| {
-              if let Some(dock_area) = crate::workspace::active_dock_area(cx) {
-                crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
-              }
-            },
-          ),
-        )
-      })
       .child(v_flex().gap_px().children(rows))
+      // The blank-area menu lives on the spacer below the rows, not on this
+      // panel root: nested context menus in woocraft both react to a right
+      // click and would open two menus over a row.
       .child(
-        h_flex().flex_none().justify_end().child(
-          div()
-            .id("sessions-new-terminal")
-            .p_1()
-            .rounded_sm()
-            .text_sm()
-            .cursor_pointer()
-            .text_color(theme.muted_foreground)
-            .hover(|s| s.bg(theme.table_hover()))
-            .child(t!("panels.sessions.new_terminal").to_string())
-            .on_click(|_, window, cx| {
-              if let Some(dock_area) = crate::workspace::active_dock_area(cx) {
-                crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
-              }
-            }),
-        ),
+        div()
+          .id("sessions-blank")
+          .flex_1()
+          .context_menu(|menu, _window, _cx| {
+            menu.item(
+              PopupMenuItem::new(t!("panels.sessions.new_terminal").to_string()).on_click(
+                |_, window, cx| {
+                  if let Some(dock_area) = crate::workspace::active_dock_area(cx) {
+                    crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
+                  }
+                },
+              ),
+            )
+          }),
       )
   }
 }

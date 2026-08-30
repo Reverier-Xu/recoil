@@ -1,5 +1,10 @@
 app.name = "Recoil"
 
+[welcome]
+closed    = "All terminal sessions are closed."
+open_hint = "Ctrl+Shift+T or File → New Terminal opens one."
+tree_hint = "Sessions stay alive in the background until closed from the tree."
+
 [session.kind]
 local = "Local"
 
@@ -16,8 +21,11 @@ hint  = "Session history will appear here (G5)."
 title = "History"
 
 [panels.sessions]
-new_terminal = "New Terminal"
-title        = "Sessions"
+background    = "Keep in Background"
+close_session = "Close Session"
+new_terminal  = "New Terminal"
+open          = "Open"
+title         = "Sessions"
 
 [menu]
 close_tab        = "Close Tab"

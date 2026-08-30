@@ -54,7 +54,7 @@ pub enum SessionOrigin {
   SshProfile { profile_id: String },
 }
 
-/// An observed ssh connection inside a session.
+/// The observed ssh connection inside a session.
 ///
 /// A local shell can enter ssh at any time and an ssh session can exit back
 /// to a local shell, so this is an observation that changes with terminal
@@ -67,6 +67,58 @@ pub struct SshObservation {
   pub profile_id: Option<String>,
 }
 
+/// Option letters that consume the following argument when parsing an ssh
+/// command line, so the first non-option argument is the destination host.
+const SSH_OPTIONS_WITH_VALUE: &[&str] = &[
+  "b", "c", "D", "e", "F", "I", "i", "J", "L", "m", "O", "o", "p", "Q", "R", "W", "w",
+];
+
+/// Parses the destination host and user from an `ssh` command line.
+///
+/// `args` excludes `argv[0]`. Returns `None` when the arguments contain no
+/// plausible destination (e.g. `ssh -V`). This is best-effort observation:
+/// remote commands like `ssh host dmidecode` still yield `host` because the
+/// destination comes first, and the application never acts on the command
+/// beyond recording where the session is connected.
+pub fn parse_ssh_command(args: &[String]) -> Option<SshObservation> {
+  let mut destination = None;
+  let mut skip_next = false;
+
+  for arg in args {
+    if skip_next {
+      skip_next = false;
+      continue;
+    }
+    if let Some(stripped) = arg.strip_prefix('-') {
+      // `-pvalue` and `--option=value` forms consume no extra argument;
+      // `-p value` and long options with values do.
+      if !stripped.starts_with('-') && SSH_OPTIONS_WITH_VALUE.contains(&stripped) && arg.len() == 2
+      {
+        skip_next = true;
+      }
+      continue;
+    }
+    destination = Some(arg.clone());
+    break;
+  }
+
+  let destination = destination?;
+  let observation = match destination.split_once('@') {
+    Some((user, host)) if !host.is_empty() => SshObservation {
+      host: host.to_owned(),
+      user: Some(user.to_owned()),
+      profile_id: None,
+    },
+    _ if destination.is_empty() => return None,
+    _ => SshObservation {
+      host: destination,
+      user: None,
+      profile_id: None,
+    },
+  };
+  Some(observation)
+}
+
 /// What the application currently observes about a session's inner state.
 ///
 /// Observations are best-effort: the application never intrudes on user
@@ -74,10 +126,33 @@ pub struct SshObservation {
 /// shell integration, profile spawn) and updates them as they change.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct SessionObservation {
-  /// The current working directory, when the terminal reports one.
+  /// The current working directory, when the terminal reports one. For ssh
+  /// sessions this is a remote path, observed heuristically until OSC 7
+  /// passes through the ssh channel (G3).
   pub cwd: Option<PathBuf>,
   /// The observed ssh connection, when the session is inside one.
   pub ssh: Option<SshObservation>,
+  /// The name of the local shell process (e.g. `fish`, `zsh`), observed
+  /// from the process tree.
+  pub shell: Option<String>,
+}
+
+impl SessionObservation {
+  /// The last path segment of the observed cwd, for display labels
+  /// (`/home/u/recoil` → `recoil`, `~` → `~`).
+  pub fn cwd_last_segment(&self) -> Option<String> {
+    let cwd = self.cwd.as_ref()?;
+    let text = cwd.to_string_lossy();
+    let trimmed = text.trim_end_matches('/');
+    if trimmed.is_empty() {
+      return Some("/".to_owned());
+    }
+    trimmed
+      .rsplit('/')
+      .next()
+      .filter(|segment| !segment.is_empty())
+      .map(str::to_owned)
+  }
 }
 
 /// The user-visible metadata of a session.
@@ -118,6 +193,7 @@ impl SessionMeta {
           user: None,
           profile_id: Some(profile_id.clone()),
         }),
+        shell: Some("ssh".to_owned()),
       },
       origin: SessionOrigin::SshProfile { profile_id },
       ..Self::new_local(id, pid)
@@ -392,6 +468,32 @@ mod tests {
     // The connection drops back to a local shell.
     meta.observation.ssh = None;
     assert_eq!(meta.label(), "Local");
+  }
+
+  #[test]
+  fn parses_ssh_destinations_from_command_lines() {
+    let args =
+      |values: &[&str]| -> Vec<String> { values.iter().map(|value| value.to_string()).collect() };
+
+    let plain = parse_ssh_command(&args(&["build.internal"])).expect("plain host");
+    assert_eq!(plain.host, "build.internal");
+    assert_eq!(plain.user, None);
+
+    let with_user = parse_ssh_command(&args(&["root@10.0.0.9", "-p", "2222"])).expect("user@host");
+    assert_eq!(with_user.host, "10.0.0.9");
+    assert_eq!(with_user.user.as_deref(), Some("root"));
+
+    // Options that take a value must not swallow the destination.
+    let with_port = parse_ssh_command(&args(&["-p", "2222", "host"])).expect("after port");
+    assert_eq!(with_port.host, "host");
+
+    // Attached values and long options do not consume the next argument.
+    let attached = parse_ssh_command(&args(&["-p2222", "host"])).expect("attached value");
+    assert_eq!(attached.host, "host");
+
+    // No destination at all.
+    assert!(parse_ssh_command(&args(&["-V"])).is_none());
+    assert!(parse_ssh_command(&args(&[])).is_none());
   }
 
   #[test]

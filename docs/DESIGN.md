@@ -152,7 +152,9 @@ show_title_bar = true
 ```
 
 - Font sizes are **css pixels**, never points; the default 16 px matches the
-  woocraft theme (`font_size: px(16.)`).
+  woocraft theme (`font_size: px(16.)`). UI and terminal share the same
+  family and size; emphasis is expressed with bold and opacity, never with
+  per-element size overrides.
 - `scrolling_history = 0` is the unlimited sentinel: scrollback is paged to
   a disk-backed cache in the konsole/kitty style. Finite values are clamped
   to `woocraft-terminal`'s in-memory maximum (1,000,000 lines).

@@ -4,16 +4,13 @@
 //! tests can exercise application-facing modules through the public surface.
 //! Domain logic that must run headless belongs in `recoil-core`, not here.
 
-pub mod actions_marker {
-  // The action set lives in `workspace` with the handlers that own it.
-}
-
 pub mod localization;
 pub mod panels;
 pub mod stores;
 pub mod terminal;
 #[cfg(feature = "tray")]
 pub mod tray;
+pub mod welcome;
 pub mod workspace;
 
 #[cfg(not(feature = "tray"))]
