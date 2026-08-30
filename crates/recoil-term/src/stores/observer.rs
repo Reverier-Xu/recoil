@@ -18,18 +18,20 @@
 //!   tmux `automatic-rename` style — so `fish` stays `fish` even when
 //!   background helpers (atuin daemons) hang off the shell.
 //!
-//! Scans are event-driven: they run once at spawn and on every title change.
-//! While an ssh connection is active, each scan schedules one delayed
-//! follow-up check (a remote disconnect produces no local events); when ssh
-//! ends, no timer remains. There is no periodic scanning of local sessions.
+//! Scans are event-driven (spawn, title changes) plus a one-second
+//! heartbeat. Event sources alone cannot be trusted: a scan can catch a
+//! transient prompt hook (atuin's fish bindings, starship precmd helpers)
+//! while it owns the tty foreground for a few milliseconds, and a remote
+//! ssh disconnect produces no local event at all. The heartbeat bounds any
+//! wrong label to about a second and notices disconnects; event scans keep
+//! reactions instant. Settle-delay confirmation was rejected: it made every
+//! real program (vim, ssh, top) wait for the label.
 
 use std::path::PathBuf;
 
 use gpui::Context;
 use recoil_core::session::SshObservation;
 
-#[cfg(target_os = "linux")]
-use crate::stores::sessions::SSH_LIVENESS_INTERVAL;
 use crate::stores::sessions::{SessionId, SessionStore};
 
 /// A snapshot of one descendant process of a session's shell.
@@ -53,11 +55,6 @@ struct Observation {
   ssh: Option<SshObservation>,
   /// The foreground process name (`process - cwd` label).
   process: Option<String>,
-  /// The tty foreground is not the root shell: a job is running. Jobs may
-  /// be transient prompt hooks (atuin, starship precmd helpers) that hold
-  /// the tty foreground for a few milliseconds, so the scan loop confirms
-  /// them over a short settle window before trusting the label.
-  settle: bool,
 }
 
 #[cfg(target_os = "linux")]
@@ -217,7 +214,6 @@ fn observation_from(
       cwd: remote.cwd,
       ssh: Some(ssh),
       process: Some(remote.program.unwrap_or_else(|| "ssh".to_owned())),
-      settle: true,
     };
   }
 
@@ -230,7 +226,6 @@ fn observation_from(
     cwd: current.and_then(|snapshot| snapshot.cwd.clone()),
     ssh: None,
     process: current.map(|snapshot| snapshot.comm.clone()),
-    settle: !foreground.is_empty(),
   }
 }
 
@@ -251,21 +246,20 @@ fn observe(root_pid: u32, title: Option<&str>) -> Observation {
       cwd: None,
       ssh: None,
       process: None,
-      settle: false,
     }
   }
 }
 
-/// How long the scan loop waits before confirming a foreground job. Long
-/// enough that prompt hooks (atuin, starship) have returned the tty
-/// foreground to the shell; short enough that real programs (vim, ssh,
-/// top) are never missed.
+/// The heartbeat cadence. One second bounds how long a transient prompt
+/// hook (atuin) can masquerade as the foreground and how long an ssh
+/// disconnect goes unnoticed, at a negligible cost of a bounded `/proc`
+/// read per session per second.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-const FOREGROUND_SETTLE_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
+const SCAN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// Starts the event-driven observation loop for a session. Linux only for
-/// now; other platforms gain observations through G3's terminal-behavior
-/// sources. The loop ends by itself when the session leaves the registry.
+/// Starts the observation loop for a session. Linux only for now; other
+/// platforms gain observations through G3's terminal-behavior sources. The
+/// loop ends by itself when the session leaves the registry.
 pub fn start(id: SessionId, store: &mut SessionStore, cx: &mut Context<SessionStore>) {
   #[cfg(not(target_os = "linux"))]
   {
@@ -293,33 +287,10 @@ pub fn start(id: SessionId, store: &mut SessionStore, cx: &mut Context<SessionSt
         let title = this.update(cx, |store, _| store.title(id)).ok().flatten();
         // Filesystem reads run on the background executor; they must never
         // block the UI thread.
-        let mut observed = cx
+        let observed = cx
           .background_executor()
           .spawn(async move { observe(root_pid, title.as_deref()) })
           .await;
-        if observed.settle {
-          // A foreground job may be a transient prompt hook (atuin history
-          // hooks, starship precmd helpers) that owns the tty foreground
-          // for a few milliseconds. Confirm the job survives a short settle
-          // window; the fresh rescan then describes either the stable job
-          // or the shell that took the foreground back.
-          cx.background_executor()
-            .timer(FOREGROUND_SETTLE_DELAY)
-            .await;
-          let Some(root_pid) = this
-            .update(cx, |store, _| store.live_root_pid(id))
-            .ok()
-            .flatten()
-          else {
-            return;
-          };
-          let title = this.update(cx, |store, _| store.title(id)).ok().flatten();
-          observed = cx
-            .background_executor()
-            .spawn(async move { observe(root_pid, title.as_deref()) })
-            .await;
-        }
-        let ssh_active = observed.ssh.is_some();
         let Ok(()) = this.update(cx, |store, cx| {
           match observed.ssh.clone() {
             Some(ssh) => store.observe_ssh(id, ssh, cx),
@@ -334,25 +305,23 @@ pub fn start(id: SessionId, store: &mut SessionStore, cx: &mut Context<SessionSt
         }) else {
           return;
         };
+      }
+    });
 
-        // While ssh is active, a remote disconnect produces no local events,
-        // so schedule exactly one follow-up check; the next scan extends the
-        // chain only if ssh is still active.
-        if ssh_active {
-          let tx = tx.clone();
-          let executor = cx.background_executor().clone();
-          let timer_executor = executor.clone();
-          executor
-            .spawn(async move {
-              timer_executor.timer(SSH_LIVENESS_INTERVAL).await;
-              let _ = tx.try_send(());
-            })
-            .detach();
+    // The heartbeat self-heals whatever the event sources miss: a scan that
+    // caught a transient prompt hook in the foreground, or a remote ssh
+    // disconnect (which produces no local event). It ends when the scan
+    // loop drops the receiver.
+    let heartbeat = cx.spawn(async move |_this, cx| {
+      loop {
+        cx.background_executor().timer(SCAN_INTERVAL).await;
+        if tx.try_send(()).is_err() {
+          return;
         }
       }
     });
 
-    store.set_observer(id, vec![scan], trigger);
+    store.set_observer(id, vec![scan, heartbeat], trigger);
   }
 }
 
@@ -409,7 +378,6 @@ mod tests {
     let ssh = observed.ssh.expect("foreground ssh is a connection");
     assert_eq!(ssh.host, "build.internal");
     assert_eq!(observed.process.as_deref(), Some("ssh"));
-    assert!(observed.settle);
 
     // ssh in the background (git-over-ssh, ControlMaster): not a connection.
     let observed = observation_from(Some(&shell), &snapshots, Some(100), None);
@@ -466,11 +434,9 @@ mod tests {
       observed.cwd.as_deref(),
       Some(std::path::Path::new("/home/u/recoil"))
     );
-    assert!(observed.settle, "a foreground job needs the settle window");
 
-    // Idle prompt: the foreground is the shell itself, nothing to settle.
+    // Idle prompt: the foreground is the shell itself.
     let observed = observation_from(Some(&shell), &snapshots, Some(100), None);
     assert_eq!(observed.process.as_deref(), Some("fish"));
-    assert!(!observed.settle);
   }
 }

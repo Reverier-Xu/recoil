@@ -15,13 +15,6 @@ use recoil_core::session::{
 };
 use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
 
-/// How often the ssh-active liveness check runs. Sessions are otherwise
-/// event-driven: scans happen on spawn, on title changes, and on this
-/// targeted check only while ssh is active (a remote disconnect produces no
-/// local events).
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) const SSH_LIVENESS_INTERVAL: Duration = Duration::from_secs(5);
-
 /// How often the backgrounded-session watcher polls the child status.
 ///
 /// Polling (instead of consuming the session event channel) keeps the store
@@ -47,10 +40,8 @@ pub enum SessionEvent {
 
 struct Watcher(#[allow(dead_code)] Task<()>);
 
-/// The per-session observer: a scan task fed by triggers, plus its trigger
-/// channel. `Triggering` replaces the looped timer with an event-driven
-/// scan schedule; the only periodic trigger is the ssh-active liveness
-/// check.
+/// The per-session observer: a scan task fed by triggers (spawn, title
+/// changes, a one-second heartbeat), plus its trigger channel.
 struct Observer {
   #[allow(dead_code)]
   tasks: Vec<Task<()>>,
