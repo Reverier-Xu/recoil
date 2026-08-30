@@ -6,18 +6,28 @@ use gpui::{
   App, AppContext as _, Context, Entity, Global, InteractiveElement as _, IntoElement,
   ParentElement as _, Render, Styled as _, Window, WindowOptions, actions,
 };
-use woocraft::{AppMenuBar, DockArea, DockItem, DockPlacement, TitleBar, v_flex, window_border};
+use woocraft::{
+  AppMenuBar, DockArea, DockItem, DockPlacement, ThemeMode, TitleBar, v_flex, window_border,
+};
 
 use crate::{
   panels,
-  panels::settings::OpenSettings,
-  stores::sessions::{SessionEvent, session_store, try_session_store},
+  stores::{
+    sessions::{SessionEvent, session_store, try_session_store},
+    settings::settings_store,
+  },
   terminal::panel,
 };
 
 actions!(
   recoil,
-  [NewTerminal, CloseActiveTab, ToggleLeftDock, QuitRecoil]
+  [
+    NewTerminal,
+    CloseActiveTab,
+    ToggleLeftDock,
+    OpenSettings,
+    QuitRecoil
+  ]
 );
 
 /// One terminal session to restore on startup. PTYs never cross process
@@ -129,7 +139,7 @@ impl Workspace {
   }
 
   fn on_open_settings(&mut self, _: &OpenSettings, _window: &mut Window, cx: &mut Context<Self>) {
-    panels::settings::SettingsWindow::open(cx);
+    panels::settings::SettingsPanel::open(cx);
   }
 }
 
@@ -374,6 +384,24 @@ pub fn observe_sessions(cx: &mut App) {
       }
       SessionEvent::Spawned(_) => save_state(cx),
       _ => {}
+    },
+  )
+  .detach();
+}
+
+/// Subscribes the workspace to settings changes that affect the global theme.
+pub fn observe_settings(cx: &mut App) {
+  let store = settings_store(cx);
+  cx.subscribe(
+    &store,
+    |_, _event: &crate::stores::settings::SettingsEvent, cx: &mut App| {
+      let config = settings_store(cx).read(cx).config().clone();
+      let mode = match config.theme.mode {
+        recoil_core::config::ThemeMode::Light => ThemeMode::Light,
+        recoil_core::config::ThemeMode::Dark => ThemeMode::Dark,
+        recoil_core::config::ThemeMode::System => ThemeMode::from(cx.window_appearance()),
+      };
+      woocraft::Theme::set_mode(mode, cx);
     },
   )
   .detach();

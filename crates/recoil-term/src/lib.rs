@@ -42,6 +42,7 @@ pub fn init(cx: &mut App) {
   workspace::bind_keys(cx);
   workspace::set_app_menu(cx);
   workspace::observe_sessions(cx);
+  workspace::observe_settings(cx);
   #[cfg(feature = "tray")]
   tray::observe_sessions(cx);
 }

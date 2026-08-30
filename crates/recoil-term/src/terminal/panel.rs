@@ -12,7 +12,10 @@ use woocraft_terminal::TerminalSession;
 
 use crate::{
   localization::{session_label, t},
-  stores::sessions::{SessionEvent, SessionId, session_store, try_session_store},
+  stores::{
+    sessions::{SessionEvent, SessionId, session_store, try_session_store},
+    settings::{SettingsEvent, try_settings_store},
+  },
 };
 
 /// The panel name used for serialization and registry lookup.
@@ -47,11 +50,33 @@ impl TerminalPanel {
     store.update(cx, |store, cx| store.attach(id, cx));
 
     let focus_handle = terminal.focus_handle(cx);
-    Self {
+    let mut panel = Self {
       id,
       terminal,
       focus_handle,
+    };
+    panel.apply_settings(cx);
+    if let Some(settings) = try_settings_store(cx) {
+      cx.subscribe(&settings, |this, _, _: &SettingsEvent, cx| {
+        this.apply_settings(cx);
+      })
+      .detach();
     }
+    panel
+  }
+
+  /// Applies the current settings to the wrapped terminal view.
+  fn apply_settings(&mut self, cx: &mut Context<Self>) {
+    let Some(store) = try_settings_store(cx) else {
+      return;
+    };
+    let config = store.read(cx).config().clone();
+    let family = config.terminal.font_family.clone();
+    let size = gpui::px(config.terminal.font_size as f32);
+    self.terminal.update(cx, |view, cx| {
+      view.set_font_family(Some(family), cx);
+      view.set_font_size(Some(size), cx);
+    });
   }
 
   /// The session this panel observes.

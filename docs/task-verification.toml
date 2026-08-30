@@ -253,27 +253,27 @@ timeout_seconds = 600
 [[task]]
 id              = "T-G02-04"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G02-04"
 
 [[verification]]
-argv            = []
+argv            = ["cargo", "test", "-p", "recoil-term", "settings"]
 id              = "VERIFY-G02-04"
 owner_task      = "T-G02-04"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
 
 [[task]]
 id              = "T-G02-05"
 include_quality = true
-state           = "planned"
+state           = "ready"
 verification_id = "VERIFY-G02-05"
 
 [[verification]]
-argv            = []
+argv            = ["cargo", "test", "-p", "recoil-term", "settings"]
 id              = "VERIFY-G02-05"
 owner_task      = "T-G02-05"
-state           = "planned"
+state           = "ready"
 timeout_seconds = 600
 
 [[task]]

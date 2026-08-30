@@ -1,26 +1,25 @@
-//! The settings window: a form editor for `config.toml`.
+//! The settings panel: a dock-hosted form editor for `config.toml`.
 //!
-//! The window edits a snapshot of the current configuration. Saving applies
+//! The panel edits a snapshot of the current configuration. Saving applies
 //! the snapshot through `SettingsStore::update_config`, which validates the
 //! result, debounces the disk write, and emits `SettingsEvent::Changed` so
 //! that live terminal views can react (T-G02-04).
 
 use gpui::{
-  App, AppContext as _, Context, Entity, FocusHandle, Focusable, IntoElement, ParentElement as _,
-  Render, SharedString, Styled as _, Window, actions, div, px,
+  App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
+  ParentElement as _, Render, SharedString, Styled as _, Window, div, px,
 };
 use recoil_core::config::{Config, CursorShape, FeaturesConfig, TerminalPalette, ThemeMode};
 use woocraft::{
-  ActiveTheme as _, Button, ButtonVariants as _, Field, Input, InputState, Label,
-  ScrollableElement as _, Selectable as _, Switch, TitleBar, field, h_flex, v_flex, v_form,
+  ActiveTheme as _, Button, ButtonVariants as _, Field, IconName, Input, InputState, Label, Panel,
+  PanelEvent, PanelState, ScrollableElement as _, Selectable as _, Switch, field, h_flex, v_flex,
+  v_form,
 };
 
 use crate::{
   localization::t,
   stores::settings::{SettingsStore, settings_store},
 };
-
-actions!(recoil, [OpenSettings]);
 
 const CURSOR_SHAPES: [CursorShape; 4] = [
   CursorShape::Block,
@@ -31,6 +30,9 @@ const CURSOR_SHAPES: [CursorShape; 4] = [
 
 const THEME_MODES: [ThemeMode; 3] = [ThemeMode::Light, ThemeMode::Dark, ThemeMode::System];
 
+/// Panel name used for serialization and registry lookup.
+pub const SETTINGS_PANEL: &str = "SettingsPanel";
+
 /// The active settings page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SettingsPage {
@@ -39,8 +41,8 @@ enum SettingsPage {
   Features,
 }
 
-/// A settings window editing one snapshot of the configuration.
-pub struct SettingsWindow {
+/// A dock panel editing one snapshot of the configuration.
+pub struct SettingsPanel {
   store: Entity<SettingsStore>,
   page: SettingsPage,
   diagnostics: Option<String>,
@@ -65,22 +67,43 @@ pub struct SettingsWindow {
   focus_handle: FocusHandle,
 }
 
-impl SettingsWindow {
-  /// Opens a new settings window.
+impl SettingsPanel {
+  /// Opens a settings panel in the center of the active dock area,
+  /// activating it if one already exists.
   pub fn open(cx: &mut App) {
-    let window = cx
-      .open_window(crate::workspace::window_options(), |window, cx| {
-        cx.new(|cx| Self::new(window, cx))
-      })
-      .expect("open settings window");
+    let Some(dock_area) = crate::workspace::active_dock_area(cx) else {
+      return;
+    };
+    let panel_id = "settings".to_string();
+    if dock_area.read(cx).panel_by_id(&panel_id, cx).is_some() {
+      let Some(window) = cx.active_window() else {
+        return;
+      };
+      window
+        .update(cx, |_, window, cx| {
+          dock_area.update(cx, |area, cx| {
+            area.activate_panel_by_id(&panel_id, window, cx);
+          });
+        })
+        .ok();
+      return;
+    }
+
+    let panel = cx.new(Self::new);
+    let Some(window) = cx.active_window() else {
+      return;
+    };
     window
-      .update(cx, |_, window, _cx| {
-        window.activate_window();
+      .update(cx, |_, window, cx| {
+        dock_area.update(cx, |area, cx| {
+          area.add_to_center(std::sync::Arc::new(panel), window, cx);
+          area.activate_panel_by_id(&panel_id, window, cx);
+        });
       })
       .ok();
   }
 
-  fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
+  fn new(cx: &mut Context<Self>) -> Self {
     let store = settings_store(cx);
     let config = store.read(cx).config().clone();
 
@@ -234,7 +257,43 @@ enum FeatureSwitch {
   BellWhenHiddenNotify,
 }
 
-impl Render for SettingsWindow {
+impl Panel for SettingsPanel {
+  fn panel_name(&self) -> &'static str {
+    SETTINGS_PANEL
+  }
+
+  fn panel_id(&self, _cx: &App) -> SharedString {
+    "settings".into()
+  }
+
+  fn title(&self, _cx: &App) -> SharedString {
+    t!("settings.title").into()
+  }
+
+  fn tab_name(&self, cx: &App) -> Option<SharedString> {
+    Some(self.title(cx))
+  }
+
+  fn icon(&self, _cx: &App) -> IconName {
+    IconName::Settings
+  }
+
+  fn dump(&self, _cx: &App) -> PanelState {
+    PanelState::new(self)
+  }
+
+  fn on_removed(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
+}
+
+impl EventEmitter<PanelEvent> for SettingsPanel {}
+
+impl Focusable for SettingsPanel {
+  fn focus_handle(&self, _cx: &App) -> FocusHandle {
+    self.focus_handle.clone()
+  }
+}
+
+impl Render for SettingsPanel {
   fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
     let page = self.page;
     let diagnostics = self.diagnostics.clone();
@@ -242,44 +301,33 @@ impl Render for SettingsWindow {
     v_flex()
       .size_full()
       .min_h_0()
-      .child(TitleBar::new().title(t!("settings.title").to_string()))
+      .p_4()
+      .gap_4()
+      .child(self.render_tabs(cx))
       .child(
         v_flex()
-          .size_full()
-          .p_4()
+          .flex_1()
+          .overflow_y_scrollbar()
           .gap_4()
-          .child(self.render_tabs(cx))
-          .child(
-            v_flex()
-              .flex_1()
-              .overflow_y_scrollbar()
-              .gap_4()
-              .child(match page {
-                SettingsPage::Terminal => self.render_terminal(cx).into_any_element(),
-                SettingsPage::Appearance => self.render_appearance(cx).into_any_element(),
-                SettingsPage::Features => self.render_features(cx).into_any_element(),
-              }),
-          )
-          .child(diagnostics_label(diagnostics, cx))
-          .child(
-            h_flex().justify_end().child(
-              Button::new("settings-save")
-                .primary()
-                .label(t!("settings.save").to_string())
-                .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
-            ),
-          ),
+          .child(match page {
+            SettingsPage::Terminal => self.render_terminal(cx).into_any_element(),
+            SettingsPage::Appearance => self.render_appearance(cx).into_any_element(),
+            SettingsPage::Features => self.render_features(cx).into_any_element(),
+          }),
+      )
+      .child(diagnostics_label(diagnostics, cx))
+      .child(
+        h_flex().justify_end().child(
+          Button::new("settings-save")
+            .primary()
+            .label(t!("settings.save").to_string())
+            .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
+        ),
       )
   }
 }
 
-impl Focusable for SettingsWindow {
-  fn focus_handle(&self, _cx: &App) -> FocusHandle {
-    self.focus_handle.clone()
-  }
-}
-
-impl SettingsWindow {
+impl SettingsPanel {
   fn render_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
     let page = self.page;
     h_flex().gap_2().children([
@@ -423,7 +471,7 @@ fn field_row(label: impl Into<SharedString>, child: impl IntoElement) -> Field {
 }
 
 fn feature_row(
-  feature: FeatureSwitch, features: &FeaturesConfig, cx: &mut Context<SettingsWindow>,
+  feature: FeatureSwitch, features: &FeaturesConfig, cx: &mut Context<SettingsPanel>,
 ) -> Field {
   let (label, checked) = match feature {
     FeatureSwitch::Hyperlink => (t!("settings.hyperlink"), features.hyperlink),
@@ -446,7 +494,7 @@ fn feature_row(
 }
 
 fn diagnostics_label(
-  diagnostics: Option<String>, cx: &mut Context<SettingsWindow>,
+  diagnostics: Option<String>, cx: &mut Context<SettingsPanel>,
 ) -> impl IntoElement {
   let theme = cx.theme();
   let mut container = div().min_h(px(20.));
@@ -461,7 +509,7 @@ fn diagnostics_label(
 }
 
 fn palette_input_states(
-  palette: &TerminalPalette, cx: &mut Context<SettingsWindow>,
+  palette: &TerminalPalette, cx: &mut Context<SettingsPanel>,
 ) -> Vec<(SharedString, Entity<InputState>)> {
   let entries = palette_entries(palette);
   entries

@@ -105,6 +105,23 @@ impl SessionStore {
     let id = SessionId::generate();
     let mut options = SpawnOptions::default_shell_options();
     options.working_directory = cwd;
+    if let Some(store) = crate::stores::settings::try_settings_store(cx) {
+      let config = store.read(cx).config().clone();
+      options.scrolling_history = if config.terminal.scrolling_history == 0 {
+        woocraft_terminal::MAX_SCROLLING_HISTORY
+      } else {
+        config.terminal.scrolling_history
+      };
+      options.alternate_scroll = config.terminal.alternate_scroll;
+      options.cursor_shape = match config.terminal.cursor_shape {
+        recoil_core::config::CursorShape::Block => woocraft_terminal::CursorShapeKind::Block,
+        recoil_core::config::CursorShape::Underline => {
+          woocraft_terminal::CursorShapeKind::Underline
+        }
+        recoil_core::config::CursorShape::Bar => woocraft_terminal::CursorShapeKind::Bar,
+        recoil_core::config::CursorShape::Hollow => woocraft_terminal::CursorShapeKind::Hollow,
+      };
+    }
     let session = TerminalSession::spawn(options, TerminalBounds::default())?;
     let meta = SessionMeta::new_local(id, session.pid());
     let pid = meta.pid;
