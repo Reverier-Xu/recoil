@@ -4,13 +4,13 @@
 //! `recoil-core::session`. This store adds the PTY handles, backgrounded
 //! exit watchers, and the event surface for panels and the tray.
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use gpui::{App, AppContext as _, Context, Entity, EventEmitter, Global, Task, WeakEntity};
 pub use recoil_core::session::SessionId;
 use recoil_core::session::{
-  ExitInfo, SessionEntry, SessionKind, SessionMeta, SessionState, SessionTransition,
-  TransitionError, TransitionOutcome,
+  ExitInfo, SessionEntry, SessionMeta, SessionState, SessionTransition, TransitionError,
+  TransitionOutcome,
 };
 use woocraft_terminal::{SpawnOptions, TerminalBounds, TerminalSession};
 
@@ -248,8 +248,42 @@ impl SessionStore {
     self.watchers.insert(id, Watcher(task));
   }
 
-  /// The `SessionKind` of a session, for classification.
-  pub fn kind(&self, id: SessionId) -> Option<SessionKind> {
-    self.entries.get(&id).map(|e| e.meta.kind.clone())
+  /// Updates the observed working directory (OSC 7, G3).
+  pub fn observe_cwd(&mut self, id: SessionId, cwd: PathBuf, cx: &mut Context<Self>) {
+    self.observe(id, |meta| meta.observation.cwd = Some(cwd), cx);
+  }
+
+  /// Updates the observed ssh connection (profile spawn, shell integration).
+  pub fn observe_ssh(
+    &mut self, id: SessionId, host: String, profile_id: Option<String>, cx: &mut Context<Self>,
+  ) {
+    self.observe(
+      id,
+      |meta| {
+        meta.observation.ssh = Some(recoil_core::session::SshObservation {
+          host,
+          user: None,
+          profile_id,
+        })
+      },
+      cx,
+    );
+  }
+
+  /// The session left ssh (observation, not user intrusion).
+  pub fn observe_leave_ssh(&mut self, id: SessionId, cx: &mut Context<Self>) {
+    self.observe(id, |meta| meta.observation.ssh = None, cx);
+  }
+
+  fn observe(
+    &mut self, id: SessionId, update: impl FnOnce(&mut SessionMeta), cx: &mut Context<Self>,
+  ) {
+    if let Some(entry) = self.entries.get_mut(&id) {
+      let before = entry.meta.clone();
+      update(&mut entry.meta);
+      if entry.meta.observation != before.observation {
+        cx.emit(SessionEvent::MetaChanged(id));
+      }
+    }
   }
 }

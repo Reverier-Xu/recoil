@@ -26,6 +26,11 @@ The application provides:
 - Session ownership independent of views: terminal sessions survive tab
   close, window close, and dock removal, per the lifecycle state machine in
   ADR-0001.
+- Dynamic session observations: the working directory and ssh state follow
+  what the user does inside the terminal (`cd`, `ssh`, exit); the
+  application derives them from terminal behavior without intruding on user
+  operations, and classification views always reflect the current
+  observation.
 - Configuration management: a validated TOML configuration (terminal font
   family with fallbacks and px sizing, cursor shape and blink, theme mode
   with terminal palette overrides, per-feature switches) with hot reload and

@@ -87,6 +87,13 @@ ADR-0001 is authoritative. Summary:
 
 - `SessionStore` owns every `TerminalSession` handle; views are observers
   created on demand from a `SessionId`.
+- Session metadata is split into a fixed `SessionOrigin` (how the session
+  was born, used for reopen suggestions) and a dynamic `SessionObservation`
+  (cwd, ssh state). The application never intrudes on user operations: it
+  derives observations from terminal behavior (OSC 7, shell integration,
+  profile spawn) and updates them as they change, so tree icons, labels,
+  and the `ssh:cwd` classification always reflect what the user is doing
+  right now.
 - States: `Spawning → Active ⇄ Backgrounded → Exited → Reaped`.
 - Close paths: tab close detaches (PTY untouched); dock-tree close kills
   (the only kill affordance for backgrounded sessions); root exit cleans up

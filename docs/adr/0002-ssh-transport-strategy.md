@@ -49,8 +49,12 @@ semantics, kill semantics, and the session state machine apply unchanged.
   unknown directives are preserved as comments. Imported values are data,
   never shell text. This import must not become a general ssh config editor
   that round-trips the user's file wholesale.
-- Session metadata records `kind = ssh` with host and profile reference so
-  classification views (ssh:cwd) can group without re-reading process state.
+- Session metadata records how a session was born (`SessionOrigin`) and,
+  separately, what is currently observed inside it (`SessionObservation`).
+  Users ssh into hosts and exit back to local shells at will, so the ssh
+  state and the working directory are dynamic observations that follow
+  terminal behavior — never fixed attributes. Classification views group by
+  the current observation.
 
 ## Consequences
 

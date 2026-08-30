@@ -8,7 +8,7 @@
 //! in `locales/en-us.toml` and `locales/zh-hans.toml`.
 
 use gpui::App;
-use recoil_core::session::{SessionKind, SessionMeta};
+use recoil_core::session::SessionMeta;
 
 rust_i18n::i18n!("locales", fallback = "en-us");
 
@@ -25,9 +25,9 @@ pub fn init(_cx: &mut App) {
 pub fn session_label(meta: &SessionMeta) -> String {
   match &meta.title {
     Some(title) if !title.is_empty() => title.clone(),
-    _ => match &meta.kind {
-      SessionKind::Local => t!("session.kind.local").to_string(),
-      SessionKind::Ssh { host, .. } => host.clone(),
+    _ => match meta.ssh() {
+      Some(ssh) => ssh.host.clone(),
+      None => t!("session.kind.local").to_string(),
     },
   }
 }

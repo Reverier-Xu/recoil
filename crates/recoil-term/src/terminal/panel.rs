@@ -5,8 +5,8 @@ use gpui::{
   ParentElement as _, Render, SharedString, Styled as _, WeakEntity, Window,
 };
 use woocraft::{
-  ActiveTheme as _, DockArea, IconName, Panel, PanelEvent, PanelState, TerminalView,
-  TerminalViewEvent, h_flex,
+  ActiveTheme as _, ContextMenuExt as _, DockArea, IconName, Panel, PanelEvent, PanelState,
+  PopupMenuItem, TerminalView, TerminalViewEvent, h_flex,
 };
 use woocraft_terminal::TerminalSession;
 
@@ -159,8 +159,60 @@ impl Render for TerminalPanel {
         .bg(cx.theme().background)
         .text_color(cx.theme().muted_foreground)
         .child(t!("terminal.exited").to_string())
+        .into_any_element()
     } else {
-      h_flex().size_full().child(self.terminal.clone())
+      let terminal = self.terminal.clone();
+      h_flex()
+        .size_full()
+        .child(self.terminal.clone())
+        // Right-click operations on the terminal surface. The menu operates
+        // on the view through its public API only; keystrokes and mouse
+        // reporting remain the terminal program's business.
+        .context_menu(move |menu, _window, cx| {
+          let clipboard = cx
+            .read_from_clipboard()
+            .and_then(|item| item.text())
+            .unwrap_or_default();
+          menu
+            .item(
+              PopupMenuItem::new(t!("terminal.menu.copy").to_string()).on_click({
+                let terminal = terminal.clone();
+                move |_, _window, cx| {
+                  terminal.update(cx, |view, cx| {
+                    view.copy(cx);
+                  });
+                }
+              }),
+            )
+            .item(
+              PopupMenuItem::new(t!("terminal.menu.paste").to_string())
+                .disabled(clipboard.is_empty())
+                .on_click({
+                  let terminal = terminal.clone();
+                  move |_, _window, cx| {
+                    terminal.update(cx, |view, cx| view.paste(&clipboard, cx));
+                  }
+                }),
+            )
+            .item(
+              PopupMenuItem::new(t!("terminal.menu.select_all").to_string()).on_click({
+                let terminal = terminal.clone();
+                move |_, _window, cx| {
+                  terminal.update(cx, |view, cx| view.select_all(cx));
+                }
+              }),
+            )
+            .separator()
+            .item(
+              PopupMenuItem::new(t!("terminal.menu.clear").to_string()).on_click({
+                let terminal = terminal.clone();
+                move |_, _window, cx| {
+                  terminal.update(cx, |view, cx| view.clear(cx));
+                }
+              }),
+            )
+        })
+        .into_any_element()
     }
   }
 }

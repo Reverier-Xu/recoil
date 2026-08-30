@@ -11,8 +11,8 @@ use gpui::{
   StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use woocraft::{
-  ActiveTheme as _, DockArea, DockPlacement, IconName, Panel, PanelEvent, TableThemeExt as _,
-  h_flex, v_flex,
+  ActiveTheme as _, ContextMenuExt as _, DockArea, DockPlacement, Icon, IconName, Panel,
+  PanelEvent, PopupMenuItem, TableThemeExt as _, h_flex, v_flex,
 };
 
 use crate::{
@@ -103,6 +103,41 @@ skeleton_panel!(
 // Sessions panel
 // ---------------------------------------------------------------------------
 
+/// Activates an existing terminal panel for the session, or creates one in
+/// the main area.
+fn open_session(id: SessionId, window: &mut Window, cx: &mut App) {
+  let store = session_store(cx);
+  let Some(entry) = store.read(cx).entry(id) else {
+    return;
+  };
+  if !entry.is_alive() {
+    return;
+  }
+  let Some(dock_area) = crate::workspace::active_dock_area(cx) else {
+    return;
+  };
+  let panel_id = format!("terminal:{id}");
+  let activated = dock_area.update(cx, |area, cx| {
+    area.activate_panel_by_id(&panel_id, window, cx)
+  });
+  if !activated {
+    let panel = cx.new(|cx| crate::terminal::panel::TerminalPanel::for_session(id, window, cx));
+    dock_area.update(cx, |area, cx| {
+      area.add_to_center(std::sync::Arc::new(panel), window, cx);
+      area.activate_panel_by_id(&panel_id, window, cx);
+    });
+  }
+}
+
+/// The canonical icon for the session's current observation: inside ssh the
+/// icon reflects the remote host; otherwise it is a local terminal.
+fn kind_icon(observation: &recoil_core::session::SessionObservation) -> IconName {
+  match observation.ssh {
+    Some(_) => IconName::Server,
+    None => IconName::Prompt,
+  }
+}
+
 /// The active-session tree (minimal G1 form: a flat list with the close-path
 /// affordances; time/ssh:cwd/custom-tree classifications arrive in G5).
 pub struct SessionsPanel {
@@ -125,36 +160,6 @@ impl SessionsPanel {
       focus_handle: cx.focus_handle(),
       store,
     }
-  }
-
-  fn open_session(&mut self, id: SessionId, window: &mut Window, cx: &mut Context<Self>) {
-    let Some(entry) = self.store.read(cx).entry(id) else {
-      return;
-    };
-    if !entry.is_alive() {
-      return;
-    }
-    // Activate an existing panel when the session already has a view
-    // somewhere; otherwise create one in the main area.
-    let panel_id = format!("terminal:{id}");
-    let Some(dock_area) = crate::workspace::active_dock_area(cx) else {
-      return;
-    };
-    let activated = dock_area.update(cx, |area, cx| {
-      area.activate_panel_by_id(&panel_id, window, cx)
-    });
-    if !activated {
-      let panel = cx.new(|cx| crate::terminal::panel::TerminalPanel::for_session(id, window, cx));
-      dock_area.update(cx, |area, cx| {
-        area.add_to_center(std::sync::Arc::new(panel), window, cx);
-        area.activate_panel_by_id(&panel_id, window, cx);
-      });
-    }
-  }
-
-  fn close_session(&mut self, id: SessionId, cx: &mut Context<Self>) {
-    // Dock-tree close kills the session, even when backgrounded (ADR-0001).
-    self.store.update(cx, |store, cx| store.close(id, cx));
   }
 }
 
@@ -191,59 +196,118 @@ impl Render for SessionsPanel {
       .store
       .read(cx)
       .entries()
-      .map(|entry| (entry.meta.id, session_label(&entry.meta), entry.is_alive()))
+      .map(|entry| {
+        (
+          entry.meta.id,
+          session_label(&entry.meta),
+          entry.is_alive(),
+          entry.state == recoil_core::session::SessionState::Active,
+          kind_icon(&entry.meta.observation),
+        )
+      })
       .collect();
 
-    let list = v_flex()
-      .gap_px()
-      .children(entries.into_iter().map(|(id, label, alive)| {
+    let rows = entries
+      .into_iter()
+      .map(|(id, label, alive, attached, icon)| {
+        let status_color = if alive {
+          theme.success
+        } else {
+          theme.muted_foreground
+        };
+
         h_flex()
           .id(SharedString::from(format!("session-{id}")))
           .p_1()
+          .mr_1()
           .items_center()
-          .justify_between()
           .rounded_sm()
           .cursor_pointer()
           .hover(|s| s.bg(theme.table_hover()))
-          .on_click(cx.listener(move |this, _event, window, cx| {
-            this.open_session(id, window, cx);
-          }))
+          .on_click(move |_, window, cx| open_session(id, window, cx))
+          // Right-click operations follow the ADR-0001 close-path semantics.
+          .context_menu(move |menu, _window, _cx| {
+            menu
+              .item(
+                PopupMenuItem::new(t!("panels.sessions.open").to_string())
+                  .disabled(!alive)
+                  .on_click(move |_, window, cx| open_session(id, window, cx)),
+              )
+              .item(
+                PopupMenuItem::new(t!("panels.sessions.background").to_string())
+                  .disabled(!attached)
+                  .on_click(move |_, _window, cx| {
+                    session_store(cx).update(cx, |store, cx| store.detach(id, cx));
+                  }),
+              )
+              .separator()
+              .item(
+                PopupMenuItem::new(t!("panels.sessions.close_session").to_string())
+                  .disabled(!alive)
+                  .on_click(move |_, _window, cx| {
+                    session_store(cx).update(cx, |store, cx| store.close(id, cx));
+                  }),
+              )
+          })
           .child(
-            h_flex()
-              .items_center()
-              .gap_2()
-              .min_w_0()
-              .child(div().size_1p5().rounded_full().flex_none().bg(if alive {
-                theme.success
-              } else {
-                theme.muted_foreground
-              }))
+            // Session-kind icon with a presence dot at the icon's bottom-right.
+            div()
+              .relative()
+              .flex_none()
+              .child(Icon::new(icon).size_4().text_color(theme.muted_foreground))
               .child(
                 div()
-                  .text_sm()
-                  .text_color(theme.foreground)
-                  .text_ellipsis()
-                  .child(label),
+                  .absolute()
+                  .bottom_0()
+                  .right_0()
+                  .size_1p5()
+                  .rounded_full()
+                  .bg(status_color)
+                  .border_1()
+                  .border_color(theme.background),
               ),
           )
           .child(
             div()
+              .ml_2()
+              .flex_1()
+              .min_w_0()
+              .text_sm()
+              .text_color(theme.foreground)
+              .text_ellipsis()
+              .child(label),
+          )
+          .child(
+            div()
               .id(SharedString::from(format!("close-{id}")))
+              .mr_1()
               .cursor_pointer()
               .text_color(theme.muted_foreground)
               .hover(|s| s.text_color(theme.danger))
               .child(IconName::Dismiss)
-              .on_click(cx.listener(move |this, _event, _window, cx| {
-                this.close_session(id, cx);
-              })),
+              .on_click(move |_, _window, cx| {
+                session_store(cx).update(cx, |store, cx| store.close(id, cx));
+              }),
           )
-      }));
+      });
 
     v_flex()
       .size_full()
       .p_1()
       .bg(theme.background)
-      .child(list)
+      // Right-click on the blank area opens a new terminal.
+      .context_menu(|menu, _window, _cx| {
+        menu.item(
+          PopupMenuItem::new(t!("panels.sessions.new_terminal").to_string()).on_click(
+            |_, window, cx| {
+              if let Some(dock_area) = crate::workspace::active_dock_area(cx) {
+                crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
+              }
+            },
+          ),
+        )
+      })
+      .child(v_flex().gap_px().children(rows))
       .child(
         h_flex().flex_none().justify_end().child(
           div()
@@ -255,11 +319,11 @@ impl Render for SessionsPanel {
             .text_color(theme.muted_foreground)
             .hover(|s| s.bg(theme.table_hover()))
             .child(t!("panels.sessions.new_terminal").to_string())
-            .on_click(cx.listener(move |_, _event, window, cx| {
+            .on_click(|_, window, cx| {
               if let Some(dock_area) = crate::workspace::active_dock_area(cx) {
                 crate::terminal::panel::open_local_terminal(&dock_area, window, cx);
               }
-            })),
+            }),
         ),
       )
   }

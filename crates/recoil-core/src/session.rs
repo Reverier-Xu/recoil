@@ -42,25 +42,54 @@ impl std::str::FromStr for SessionId {
   }
 }
 
-/// What kind of program a session runs.
+/// How a session was born. Fixed for the lifetime of the session; used for
+/// reopen suggestions after restart. Contrast with [`SessionObservation`],
+/// which follows what the user actually does inside the terminal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
-pub enum SessionKind {
-  /// A local shell session.
+pub enum SessionOrigin {
+  /// Spawned as a local shell.
   Local,
-  /// An ssh session bound to a profile (G4).
-  Ssh { profile_id: String, host: String },
+  /// Spawned through an ssh profile (G4).
+  SshProfile { profile_id: String },
+}
+
+/// An observed ssh connection inside a session.
+///
+/// A local shell can enter ssh at any time and an ssh session can exit back
+/// to a local shell, so this is an observation that changes with terminal
+/// behavior, never a fixed attribute (ADR-0001).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SshObservation {
+  pub host: String,
+  pub user: Option<String>,
+  /// The profile the session was opened from, when applicable.
+  pub profile_id: Option<String>,
+}
+
+/// What the application currently observes about a session's inner state.
+///
+/// Observations are best-effort: the application never intrudes on user
+/// operations, it derives cwd and ssh state from terminal behavior (OSC 7,
+/// shell integration, profile spawn) and updates them as they change.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct SessionObservation {
+  /// The current working directory, when the terminal reports one.
+  pub cwd: Option<PathBuf>,
+  /// The observed ssh connection, when the session is inside one.
+  pub ssh: Option<SshObservation>,
 }
 
 /// The user-visible metadata of a session.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionMeta {
   pub id: SessionId,
-  pub kind: SessionKind,
+  /// How the session was born (fixed).
+  pub origin: SessionOrigin,
   /// The application title (OSC 0/2), if the program set one.
   pub title: Option<String>,
-  /// The working directory reported through OSC 7 (G3).
-  pub cwd: Option<PathBuf>,
+  /// Dynamic observations that follow terminal behavior.
+  pub observation: SessionObservation,
   /// The PTY child process id, when the session has one.
   pub pid: Option<u32>,
   pub created_at: DateTime<Utc>,
@@ -71,19 +100,40 @@ impl SessionMeta {
   pub fn new_local(id: SessionId, pid: Option<u32>) -> Self {
     Self {
       id,
-      kind: SessionKind::Local,
+      origin: SessionOrigin::Local,
       title: None,
-      cwd: None,
+      observation: SessionObservation::default(),
       pid,
       created_at: Utc::now(),
     }
   }
 
+  /// Creates metadata for a session spawned from an ssh profile (G4).
+  pub fn new_ssh(id: SessionId, profile_id: String, host: String, pid: Option<u32>) -> Self {
+    Self {
+      observation: SessionObservation {
+        cwd: None,
+        ssh: Some(SshObservation {
+          host,
+          user: None,
+          profile_id: Some(profile_id.clone()),
+        }),
+      },
+      origin: SessionOrigin::SshProfile { profile_id },
+      ..Self::new_local(id, pid)
+    }
+  }
+
+  /// The observed ssh connection, when present.
+  pub fn ssh(&self) -> Option<&SshObservation> {
+    self.observation.ssh.as_ref()
+  }
+
   /// The label used for tabs, tray menus, and tree nodes.
   pub fn label(&self) -> String {
-    self.title.clone().unwrap_or_else(|| match &self.kind {
-      SessionKind::Local => "Local".to_owned(),
-      SessionKind::Ssh { host, .. } => host.clone(),
+    self.title.clone().unwrap_or_else(|| match self.ssh() {
+      Some(ssh) => ssh.host.clone(),
+      None => "Local".to_owned(),
     })
   }
 }
@@ -319,6 +369,32 @@ mod tests {
   }
 
   #[test]
+  fn observations_follow_terminal_behavior() {
+    let mut meta = SessionMeta::new_local(SessionId::generate(), None);
+    assert!(meta.ssh().is_none());
+    assert!(meta.observation.cwd.is_none());
+
+    // The user cd's somewhere: the observation updates.
+    meta.observation.cwd = Some(PathBuf::from("/tmp"));
+    assert_eq!(
+      meta.observation.cwd.as_deref(),
+      Some(std::path::Path::new("/tmp"))
+    );
+
+    // The user ssh's to a host: the observation follows.
+    meta.observation.ssh = Some(SshObservation {
+      host: "build.internal".to_owned(),
+      user: None,
+      profile_id: None,
+    });
+    assert_eq!(meta.label(), "build.internal");
+
+    // The connection drops back to a local shell.
+    meta.observation.ssh = None;
+    assert_eq!(meta.label(), "Local");
+  }
+
+  #[test]
   fn reap_of_live_session_is_invalid() {
     let mut e = entry();
     assert!(e.transition(SessionTransition::Reap).is_err());
@@ -331,14 +407,7 @@ mod tests {
     assert_eq!(meta.label(), "Local");
     meta.title = Some("vim ~".to_owned());
     assert_eq!(meta.label(), "vim ~");
-    let ssh = SessionMeta {
-      kind: SessionKind::Ssh {
-        profile_id: "p1".to_owned(),
-        host: "build.internal".to_owned(),
-      },
-      title: None,
-      ..meta
-    };
+    let ssh = SessionMeta::new_ssh(meta.id, "p1".to_owned(), "build.internal".to_owned(), None);
     assert_eq!(ssh.label(), "build.internal");
   }
 }
