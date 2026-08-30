@@ -25,6 +25,7 @@ use recoil_core::session::SshObservation;
 use crate::stores::sessions::{SessionId, SessionStore};
 
 /// How often the process tree of a live session is scanned.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 const OBSERVER_INTERVAL: std::time::Duration = Duration::from_secs(2);
 
 /// A snapshot of one descendant process of a session's shell.
