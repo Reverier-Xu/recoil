@@ -29,6 +29,10 @@ struct GlobalActiveDockArea(Entity<DockArea>);
 
 impl Global for GlobalActiveDockArea {}
 
+struct GlobalAppMenuBar(Entity<AppMenuBar>);
+
+impl Global for GlobalAppMenuBar {}
+
 /// Returns the dock area of the active workspace, if one exists.
 pub fn active_dock_area(cx: &App) -> Option<Entity<DockArea>> {
   cx.try_global::<GlobalActiveDockArea>()
@@ -67,7 +71,7 @@ impl Workspace {
 
     let workspace = cx.new(|_cx| Self {
       dock_area: dock_area.clone(),
-      app_menu_bar,
+      app_menu_bar: app_menu_bar.clone(),
     });
 
     build_layout(&dock_area, window, cx);
@@ -86,6 +90,7 @@ impl Workspace {
     .detach();
 
     cx.set_global(GlobalActiveDockArea(dock_area));
+    cx.set_global(GlobalAppMenuBar(app_menu_bar.clone()));
     // Persist the initial assembly: `LayoutChanged` events fired during
     // construction were seen by no subscriber yet.
     save_layout(cx);
@@ -230,7 +235,8 @@ impl Render for Workspace {
           TitleBar::new()
             .title("Recoil")
             .app_menu_bar(self.app_menu_bar.clone())
-            .language_button(true),
+            .language_button(true)
+            .on_language_button_click(|_, _, cx| rebuild_for_locale(cx)),
         )
         .child(self.dock_area.clone()),
     )
@@ -249,6 +255,21 @@ pub fn window_options() -> WindowOptions {
   }
 }
 
+/// Rebuilds every locale-dependent surface: the application menu (the
+/// AppMenuBar caches `cx.get_menus()`, so it must be reloaded), the native
+/// menu on macOS, and the tray menu.
+pub fn rebuild_for_locale(cx: &mut App) {
+  set_app_menu(cx);
+  let bar = cx
+    .try_global::<GlobalAppMenuBar>()
+    .map(|global| global.0.clone());
+  if let Some(bar) = bar {
+    bar.update(cx, |bar, cx| bar.reload(cx));
+  }
+  #[cfg(feature = "tray")]
+  crate::tray::rebuild(cx);
+}
+
 /// Sets up the application menu.
 pub fn set_app_menu(cx: &mut App) {
   use gpui::{Menu, MenuItem};
@@ -256,7 +277,7 @@ pub fn set_app_menu(cx: &mut App) {
   let label = |key: &str| SharedString::from(crate::localization::t!(key).to_string());
   cx.set_menus(vec![
     Menu {
-      name: "Recoil".into(),
+      name: label("menu.file"),
       disabled: false,
       items: vec![
         MenuItem::action(label("menu.new_terminal"), NewTerminal),

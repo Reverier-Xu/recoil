@@ -21,6 +21,7 @@ title        = "会话"
 
 [menu]
 close_tab        = "关闭标签页"
+file             = "文件"
 new_terminal     = "新建终端"
 quit             = "退出"
 toggle_left_dock = "切换左侧 Dock"

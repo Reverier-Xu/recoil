@@ -21,6 +21,7 @@ title        = "Sessions"
 
 [menu]
 close_tab        = "Close Tab"
+file             = "File"
 new_terminal     = "New Terminal"
 quit             = "Quit"
 toggle_left_dock = "Toggle Left Dock"
