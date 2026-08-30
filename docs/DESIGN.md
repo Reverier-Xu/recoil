@@ -137,32 +137,32 @@ periodic scanning of local sessions.
 ```toml
 # config.toml
 [terminal]
-font_family = "Maple Mono"
-font_fallbacks = ["Noto Sans Mono CJK SC", "Symbols Nerd Font"]  # upstream hook
-font_size = 16.0              # css pixels, matches the woocraft theme default
-scrolling_history = 10_000    # lines; 0 = unlimited (disk-backed)
-cursor_shape = "block"        # block | underline | bar | hollow
-cursor_blink = true
-alternate_scroll = true
+font-family = "Maple Mono"
+font-fallbacks = ["Noto Sans Mono CJK SC", "Symbols Nerd Font"]  # upstream hook
+font-size = 16.0              # css pixels, matches the woocraft theme default
+scrolling-history = 10_000    # lines; 0 = unlimited (disk-backed)
+cursor-shape = "block"        # block | underline | bar | hollow
+cursor-blink = true
+alternate-scroll = true
 
 [terminal.features]           # each switchable
 hyperlink = true              # hover underline + modifier-click open
-smart_select = true           # word characters + URL fallback
-mouse_reporting = true        # application mouse-mode passthrough
-copy_on_select = true
+smart-select = true           # word characters + URL fallback
+mouse-reporting = true        # application mouse-mode passthrough
+copy-on-select = true
 osc52 = true                  # allow programs to read/write the clipboard
 bell = true
-bell_when_hidden_notify = true
+bell-when-hidden-notify = true
 
 [theme]
 mode = "system"               # light | dark | system
 # optional full 16-color + fg/bg/cursor override; defaults derive from the
 # woocraft theme
-# [theme.terminal_palette]
+# [theme.terminal-palette]
 
 [ui]
-left_dock_width = 280.0
-show_title_bar = true
+left-dock-width = 280.0
+show-title-bar = true
 ```
 
 - Font sizes are **css pixels**, never points; the default 16 px matches the

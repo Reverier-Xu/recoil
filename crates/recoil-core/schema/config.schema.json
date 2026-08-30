@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Config",
+  "description": "Top-level user configuration document (`config.toml`).",
+  "type": "object",
+  "properties": {
+    "terminal": {
+      "$ref": "#/$defs/TerminalConfig",
+      "default": {
+        "alternate-scroll": true,
+        "cursor-blink": true,
+        "cursor-shape": "block",
+        "features": {
+          "bell": true,
+          "bell-when-hidden-notify": true,
+          "copy-on-select": true,
+          "hyperlink": true,
+          "mouse-reporting": true,
+          "osc52": true,
+          "smart-select": true
+        },
+        "font-fallbacks": [],
+        "font-family": "Maple Mono",
+        "font-size": 16.0,
+        "scrolling-history": 10000
+      }
+    },
+    "theme": {
+      "$ref": "#/$defs/ThemeConfig",
+      "default": {
+        "mode": "system",
+        "terminal-palette": null
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "CursorShape": {
+      "description": "Cursor shapes for the terminal caret.",
+      "oneOf": [
+        {
+          "description": "Filled block.",
+          "type": "string",
+          "const": "block"
+        },
+        {
+          "description": "Underline below the cell.",
+          "type": "string",
+          "const": "underline"
+        },
+        {
+          "description": "Vertical bar at the cell edge.",
+          "type": "string",
+          "const": "bar"
+        },
+        {
+          "description": "Hollow (outlined) block.",
+          "type": "string",
+          "const": "hollow"
+        }
+      ]
+    },
+    "FeaturesConfig": {
+      "description": "Feature switches under `[terminal.features]`. Every extension that\ntouches terminal behavior is gated here (ADR: configuration is data);\na disabled switch must remove all of the feature's hot-path work.",
+      "type": "object",
+      "properties": {
+        "bell": {
+          "description": "React to the terminal bell (tab highlight).",
+          "type": "boolean",
+          "default": true
+        },
+        "bell-when-hidden-notify": {
+          "description": "Escalate the bell to a notification while the window is hidden.",
+          "type": "boolean",
+          "default": true
+        },
+        "copy-on-select": {
+          "description": "Copy to the clipboard on selection.",
+          "type": "boolean",
+          "default": true
+        },
+        "hyperlink": {
+          "description": "OSC 8 hyperlinks: hover underline, modifier-click open, copy-link.",
+          "type": "boolean",
+          "default": true
+        },
+        "mouse-reporting": {
+          "description": "Application mouse-mode passthrough to terminal programs.",
+          "type": "boolean",
+          "default": true
+        },
+        "osc52": {
+          "description": "Allow programs to read and write the clipboard via OSC 52 (THR-001).",
+          "type": "boolean",
+          "default": true
+        },
+        "smart-select": {
+          "description": "Smart selection: word characters, multi-click granularity, URL\nfallback over visible rows.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalConfig": {
+      "description": "Terminal appearance and behavior settings.",
+      "type": "object",
+      "properties": {
+        "alternate-scroll": {
+          "description": "Send arrow keys instead of scrolling when the alternate screen is\nactive.",
+          "type": "boolean",
+          "default": true
+        },
+        "cursor-blink": {
+          "description": "Whether the caret blinks.",
+          "type": "boolean",
+          "default": true
+        },
+        "cursor-shape": {
+          "description": "The caret shape.",
+          "$ref": "#/$defs/CursorShape",
+          "default": "block"
+        },
+        "features": {
+          "description": "Switchable terminal extensions.",
+          "$ref": "#/$defs/FeaturesConfig",
+          "default": {
+            "bell": true,
+            "bell-when-hidden-notify": true,
+            "copy-on-select": true,
+            "hyperlink": true,
+            "mouse-reporting": true,
+            "osc52": true,
+            "smart-select": true
+          }
+        },
+        "font-fallbacks": {
+          "description": "Ordered fallback families applied after the primary family.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "font-family": {
+          "description": "Primary monospace font family.",
+          "type": "string",
+          "default": "Maple Mono"
+        },
+        "font-size": {
+          "description": "Base font size in CSS pixels (px), matching the woocraft theme default\nof 16 px. Never a point value.",
+          "type": "number",
+          "format": "double",
+          "default": 16.0
+        },
+        "scrolling-history": {
+          "description": "Scrollback history length in lines.\n\n- `0` ([`UNLIMITED_SCROLLING_HISTORY`]) means unlimited: scrollback is\n  kept in a disk-backed cache instead of memory.\n- Any other value is a finite in-memory history in lines, clamped by the\n  terminal backend to [`MAX_SCROLLING_HISTORY`].",
+          "type": "integer",
+          "format": "uint",
+          "default": 10000,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalPalette": {
+      "description": "A terminal palette override: the 16 ANSI colors plus foreground,\nbackground, cursor, and selection. Colors are `#rrggbb` strings; unset\nentries derive from the active woocraft theme.",
+      "type": "object",
+      "properties": {
+        "background": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "black": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "blue": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-black": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-blue": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-cyan": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-green": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-magenta": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-red": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-white": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "bright-yellow": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "cyan": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "foreground": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "green": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "magenta": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "red": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "selection": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "white": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "yellow": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThemeConfig": {
+      "description": "Theme settings.",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "description": "Light/dark selection.",
+          "$ref": "#/$defs/ThemeMode",
+          "default": "system"
+        },
+        "terminal-palette": {
+          "description": "Optional terminal palette override; defaults derive from the active\nwoocraft theme.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TerminalPalette"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThemeMode": {
+      "description": "How the application picks light or dark colors.",
+      "oneOf": [
+        {
+          "description": "Always light.",
+          "type": "string",
+          "const": "light"
+        },
+        {
+          "description": "Always dark.",
+          "type": "string",
+          "const": "dark"
+        },
+        {
+          "description": "Follow the operating system.",
+          "type": "string",
+          "const": "system"
+        }
+      ]
+    }
+  }
+}

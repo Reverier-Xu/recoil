@@ -103,6 +103,41 @@ unit       = "records"
 value      = "5000"
 
 [[constant]]
+id         = "terminal.cursor-shape-default"
+owner_task = "T-G02-01"
+source     = "recoil-core config default"
+unit       = "shape"
+value      = "block"
+
+[[constant]]
+id         = "terminal.cursor-blink-default"
+owner_task = "T-G02-01"
+source     = "recoil-core config default"
+unit       = "boolean"
+value      = "true"
+
+[[constant]]
+id         = "terminal.alternate-scroll-default"
+owner_task = "T-G02-01"
+source     = "recoil-core config default"
+unit       = "boolean"
+value      = "true"
+
+[[constant]]
+id         = "terminal.features-default"
+owner_task = "T-G02-01"
+source     = "recoil-core FeaturesConfig default"
+unit       = "boolean per switch"
+value      = "true (hyperlink, smart-select, mouse-reporting, copy-on-select, osc52, bell, bell-when-hidden-notify)"
+
+[[constant]]
+id         = "theme.mode-default"
+owner_task = "T-G02-01"
+source     = "recoil-core config default"
+unit       = "mode"
+value      = "system"
+
+[[constant]]
 id         = "i18n.tier0-locales"
 owner_task = "T-G00-02"
 source     = "ADR-0003"

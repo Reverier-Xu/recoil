@@ -54,6 +54,13 @@ precedence       = 80
 verification_ids = ["VERIFY-G00-02"]
 
 [[path_rule]]
+globs            = ["crates/recoil-core/src/config*", "crates/recoil-core/schema/**"]
+id               = "IMPACT-CORE-CONFIG-SURFACE"
+owner_task       = "T-G02-01"
+precedence       = 60
+verification_ids = ["VERIFY-G02-01"]
+
+[[path_rule]]
 globs            = ["crates/recoil-core/**"]
 id               = "IMPACT-CORE-CONFIG"
 owner_task       = "T-G00-06"
