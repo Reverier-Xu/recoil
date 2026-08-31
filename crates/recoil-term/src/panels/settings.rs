@@ -70,37 +70,26 @@ pub struct SettingsPanel {
 impl SettingsPanel {
   /// Opens a settings panel in the center of the active dock area,
   /// activating it if one already exists.
-  pub fn open(cx: &mut App) {
+  pub fn open(window: &mut Window, cx: &mut App) {
     let Some(dock_area) = crate::workspace::active_dock_area(cx) else {
+      tracing::warn!("no active dock area; cannot open settings panel");
       return;
     };
     let panel_id = "settings".to_string();
     if dock_area.read(cx).panel_by_id(&panel_id, cx).is_some() {
-      let Some(window) = cx.active_window() else {
-        return;
-      };
-      window
-        .update(cx, |_, window, cx| {
-          dock_area.update(cx, |area, cx| {
-            area.activate_panel_by_id(&panel_id, window, cx);
-          });
-        })
-        .ok();
+      tracing::debug!("activating existing settings panel");
+      dock_area.update(cx, |area, cx| {
+        area.activate_panel_by_id(&panel_id, window, cx);
+      });
       return;
     }
 
+    tracing::debug!("creating new settings panel");
     let panel = cx.new(Self::new);
-    let Some(window) = cx.active_window() else {
-      return;
-    };
-    window
-      .update(cx, |_, window, cx| {
-        dock_area.update(cx, |area, cx| {
-          area.add_to_center(std::sync::Arc::new(panel), window, cx);
-          area.activate_panel_by_id(&panel_id, window, cx);
-        });
-      })
-      .ok();
+    dock_area.update(cx, |area, cx| {
+      area.add_to_center(std::sync::Arc::new(panel), window, cx);
+      area.activate_panel_by_id(&panel_id, window, cx);
+    });
   }
 
   fn new(cx: &mut Context<Self>) -> Self {

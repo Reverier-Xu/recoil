@@ -138,8 +138,8 @@ impl Workspace {
     quit(cx);
   }
 
-  fn on_open_settings(&mut self, _: &OpenSettings, _window: &mut Window, cx: &mut Context<Self>) {
-    panels::settings::SettingsPanel::open(cx);
+  fn on_open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
+    panels::settings::SettingsPanel::open(window, cx);
   }
 }
 
@@ -391,20 +391,26 @@ pub fn observe_sessions(cx: &mut App) {
 
 /// Subscribes the workspace to settings changes that affect the global theme.
 pub fn observe_settings(cx: &mut App) {
+  apply_theme_from_settings(cx);
   let store = settings_store(cx);
   cx.subscribe(
     &store,
     |_, _event: &crate::stores::settings::SettingsEvent, cx: &mut App| {
-      let config = settings_store(cx).read(cx).config().clone();
-      let mode = match config.theme.mode {
-        recoil_core::config::ThemeMode::Light => ThemeMode::Light,
-        recoil_core::config::ThemeMode::Dark => ThemeMode::Dark,
-        recoil_core::config::ThemeMode::System => ThemeMode::from(cx.window_appearance()),
-      };
-      woocraft::Theme::set_mode(mode, cx);
+      apply_theme_from_settings(cx);
     },
   )
   .detach();
+}
+
+fn apply_theme_from_settings(cx: &mut App) {
+  let config = settings_store(cx).read(cx).config().clone();
+  let mode = match config.theme.mode {
+    recoil_core::config::ThemeMode::Light => ThemeMode::Light,
+    recoil_core::config::ThemeMode::Dark => ThemeMode::Dark,
+    recoil_core::config::ThemeMode::System => ThemeMode::from(cx.window_appearance()),
+  };
+  tracing::debug!(theme_mode = ?config.theme.mode, resolved = ?mode, "applying theme mode from settings");
+  woocraft::Theme::set_mode(mode, cx);
 }
 
 fn close_terminal_panel(id: recoil_core::session::SessionId, cx: &mut App) {
