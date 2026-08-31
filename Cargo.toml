@@ -19,15 +19,18 @@ version      = "0.0.1"
 # alacritty; see AGENTS.md and docs/roadmap.md architecture rules.
 [workspace.dependencies]
 recoil-core = { path = "crates/recoil-core" }
-woocraft = { git = "https://github.com/Reverier-Xu/woocraft", rev = "0135e39983a39a1b3450fcaa2ce628ef28a4a0a8", default-features = false, features = [
+woocraft = { git = "https://github.com/Reverier-Xu/woocraft", rev = "b84ede1576d55551adf79c2b6d995ba9b8391cef", default-features = false, features = [
   "terminal",
 ] }
-woocraft-terminal = { git = "https://github.com/Reverier-Xu/woocraft", rev = "0135e39983a39a1b3450fcaa2ce628ef28a4a0a8", package = "woocraft-terminal" }
-# gpui and its platform bootstrap, pinned to the exact zed revision woocraft
-# itself uses so cargo unifies the graph. A direct pin is required because
-# gpui proc macros emit `::gpui::` absolute paths.
-gpui = { git = "https://github.com/zed-industries/zed", rev = "399258feeaf90ad8a3a208c99221ee87b6452f38", package = "gpui" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "399258feeaf90ad8a3a208c99221ee87b6452f38", package = "gpui_platform", features = [
+woocraft-terminal = { git = "https://github.com/Reverier-Xu/woocraft", rev = "b84ede1576d55551adf79c2b6d995ba9b8391cef", package = "woocraft-terminal" }
+# gpui and its platform bootstrap. These must stay direct deps because gpui
+# proc macros emit `::gpui::` absolute paths — but they must NOT pin a rev:
+# woocraft floats its zed deps on main, and a differing rev would make cargo
+# resolve two full gpui stacks (one per source), breaking every re-exported
+# type. The concrete commit is locked in Cargo.lock; run `cargo update` for
+# zed sources only together with a woocraft bump.
+gpui = { git = "https://github.com/zed-industries/zed", package = "gpui" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", package = "gpui_platform", features = [
   "font-kit",
   "wayland",
   "x11",
