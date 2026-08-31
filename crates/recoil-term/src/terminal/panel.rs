@@ -182,6 +182,9 @@ impl Render for TerminalPanel {
         .size_full()
         .items_center()
         .justify_center()
+        .p_1()
+        .overflow_hidden()
+        .bg(cx.theme().background)
         .child(self.terminal.clone())
         // Right-click operations on the terminal surface. The menu operates
         // on the view through its public API only; keystrokes and mouse
